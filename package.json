@@ -3,7 +3,7 @@
   "displayName": "Notifyer",
   "description": "Desktop notifications for Codex and Claude main-task completion, Python terminal tasks, and remaining usage quotas in the VS Code status bar.",
   "version": "0.2.11",
-  "publisher": "mapengsen",
+  "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
   "repository": {
