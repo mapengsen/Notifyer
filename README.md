@@ -1,6 +1,6 @@
 # Notifyer
 
-Language: <a href="./README.md">English (default)</a> | <a href="./README.zh-CN.md">简体中文</a>
+Language: <a href="https://github.com/mapengsen/Notifyer">English (default)</a> | <a href="https://github.com/mapengsen/Notifyer/blob/main/README.zh-CN.md">简体中文</a>
 
 Notifyer is a VS Code extension that combines Codex and Claude Code task notifications, remaining usage for both providers, and Python terminal notifications in one place.
 
@@ -12,20 +12,20 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 ## What can it do?
 
-### Monitor AI coding tasks (desktop notifications)
-
-Notifyer monitors the main-task status of AI agents such as Codex and Claude Code. When a task finishes, the extension sends a desktop notification. Child agents and background processes do not constantly interrupt you, keeping notifications useful.
+### 1. Monitor AI coding tasks (desktop notifications)
 
 <img alt="AI coding task desktop notification" src="image/1/1786957667033.png" width="364" height="136">
 
-### Monitor terminal commands (desktop notifications)
+Notifyer monitors the main-task status of AI agents such as Codex and Claude Code. When a task finishes, the extension sends a desktop notification. Child agents and background processes do not constantly interrupt you, keeping notifications useful.
 
-Notifyer monitors tasks running in the terminal and sends a desktop notification when a task succeeds or fails.
+### 2. Monitor terminal commands (desktop notifications)
 
 <img alt="Terminal command desktop notification" src="image/1/1786957707385.png" width="370" height="153">
 
-### View Codex and Claude usage (in VS Code)
+Notifyer monitors tasks running in the terminal and sends a desktop notification when a task succeeds or fails.
+
+### 3. View Codex and Claude usage in VS Code
+
+<img alt="Codex and Claude usage in VS Code" src="image/README.zh-CN/1786984705972.png" width="393" height="140">
 
 Notifyer can display Codex and Claude Code usage directly in the VS Code status bar, including remaining percentages, used percentages, and reset times. You can keep track of the current account status without repeatedly opening a webpage or terminal.
-
-<img alt="Codex and Claude usage in VS Code" src="image/1/1786959965417.png" width="367" height="128">

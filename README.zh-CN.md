@@ -12,20 +12,20 @@ Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两
 
 ## 它能做什么？
 
-### 监听 AI 编程任务（桌面通知）
-
-支持监听 Codex、Claude Code 等 AI Agent 的主任务状态。当任务完成时，插件会自动发送桌面通知；子 Agent 和后台过程不会频繁打扰你，让通知真正有价值。
+### 1、监听 AI 编程任务（桌面通知）
 
 <img alt="1786957667033" src="image/1/1786957667033.png" width="364" height="136">
 
-### Termin命令监听（桌面通知）
+支持监听 Codex、Claude Code 等 AI Agent 的主任务状态。当任务完成时，插件会自动发送桌面通知；子 Agent 和后台过程不会频繁打扰你，让通知真正有价值。
 
-支持监听Termin中运行的任务状态。当任务失败或者成功时，插件会自动发送桌面通知
+### 2、Terminal命令监听（桌面通知）
 
 <img alt="1786957707385" src="image/1/1786957707385.png" width="370" height="153">
 
-### 查看 Codex 和 Claude 使用额度（vscode中显示）
+支持监听Termin中运行的任务状态。当任务失败或者成功时，插件会自动发送桌面通知
 
-部分插件还可以直接在 VS Code 状态栏中显示 Codex、Claude Code 的额度使用情况，包括剩余比例、使用比例以及重置时间。不用频繁打开网页或终端，就能随时掌握当前账号状态。
+### 3、随时查看 Codex 和 Claude 使用额度（vscode中显示）
 
-![1786960287890](image/README.zh-CN/1786960287890.png)
+<img alt="1786984705972" src="image/README.zh-CN/1786984705972.png" width="393" height="140">
+
+还可以直接在 VS Code 状态栏中显示 Codex、Claude Code 的额度使用情况，包括剩余比例、使用比例以及重置时间。不用频繁打开网页或终端，就能随时掌握当前账号状态。
