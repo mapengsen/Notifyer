@@ -1,4 +1,3 @@
-/etc/profile: line 32: /home/linuxbrew/.linuxbrew/Homebrew/bin/brew: No such file or directory
 # Notifyer
 
 Language: <a href="./README.md">English (default)</a> | <a href="./README.zh-CN.md">简体中文</a>

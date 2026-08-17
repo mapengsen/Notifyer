@@ -1,0 +1,252 @@
+{
+  "name": "codex-task-companion",
+  "displayName": "Notifyer",
+  "description": "Desktop notifications for Codex and Claude main-task completion, Python terminal tasks, and remaining usage quotas in the VS Code status bar.",
+  "version": "0.2.11",
+  "publisher": "local",
+  "license": "MIT",
+  "icon": "resources/images/vscode-plugin.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mapengsen/Notifyer.git"
+  },
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "categories": [
+    "AI",
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "codex",
+    "claude",
+    "anthropic",
+    "openai",
+    "notification",
+    "python",
+    "terminal",
+    "quota"
+  ],
+  "main": "./out/src/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onTerminalShellIntegration:*"
+  ],
+  "contributes": {
+    "icons": {
+      "codex-blossom": {
+        "description": "Codex blossom status bar icon",
+        "default": {
+          "fontPath": "resources/codex-icon.woff",
+          "fontCharacter": "\\e900"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "codexTaskCompanion.refreshUsage",
+        "title": "Notifyer: Refresh Usage"
+      },
+      {
+        "command": "codexTaskCompanion.chooseUsageDisplayMode",
+        "title": "Notifyer: Choose Usage Display"
+      },
+      {
+        "command": "codexTaskCompanion.refreshClaudeUsage",
+        "title": "Notifyer: Refresh Claude Usage"
+      },
+      {
+        "command": "codexTaskCompanion.chooseClaudeUsageDisplayMode",
+        "title": "Notifyer: Choose Claude Usage Display"
+      },
+      {
+        "command": "codexTaskCompanion.testNotification",
+        "title": "Notifyer: Test Desktop Notification"
+      },
+      {
+        "command": "codexTaskCompanion.showDiagnostics",
+        "title": "Notifyer: Show Diagnostics"
+      },
+      {
+        "command": "codexTaskCompanion.openSettings",
+        "title": "Notifyer: Open Settings"
+      }
+    ],
+    "configuration": {
+      "title": "Notifyer",
+      "properties": {
+        "codexTaskCompanion.notifications.mode": {
+          "type": "string",
+          "enum": [
+            "Desktop",
+            "VS Code",
+            "Both"
+          ],
+          "default": "Desktop",
+          "description": "通知发送到桌面、VS Code，或两者同时发送。桌面通知失败时会自动回退到 VS Code 通知。"
+        },
+        "codexTaskCompanion.notifications.onlyWhenWindowUnfocused": {
+          "type": "boolean",
+          "default": false,
+          "description": "仅在 VS Code 窗口未获得焦点时发送通知。"
+        },
+        "codexTaskCompanion.notifications.openVsCodeOnClick": {
+          "type": "boolean",
+          "default": true,
+          "description": "点击桌面通知后尝试把对应的 VS Code 窗口切回前台。Windows 使用原生辅助脚本，其他平台使用 VS Code 命令。"
+        },
+        "codexTaskCompanion.codex.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 Codex 主任务完成通知和会话监控。子 agent 会话始终不会触发通知。"
+        },
+        "codexTaskCompanion.codex.sessionsRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Codex sessions 目录。留空自动查找 ~/.codex/sessions；远程环境自动查找失败时可填写远程路径。"
+        },
+        "codexTaskCompanion.codex.sessionPollMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "description": "Codex 会话 JSONL 的轮询间隔（毫秒）。"
+        },
+        "codexTaskCompanion.codex.sessionLookbackDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 14,
+          "description": "扫描最近多少天的 Codex 会话文件。"
+        },
+        "codexTaskCompanion.codex.notifyInitialScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "首次扫描时是否也通知已经完成的历史主任务。默认关闭，避免启动 VS Code 时产生历史通知。"
+        },
+        "codexTaskCompanion.codex.usageUpdateIntervalSeconds": {
+          "type": "number",
+          "default": 1800,
+          "minimum": 30,
+          "description": "Codex 额度刷新间隔（秒），默认 30 分钟。"
+        },
+        "codexTaskCompanion.codex.usageDisplayMode": {
+          "type": "string",
+          "enum": [
+            "remaining",
+            "used"
+          ],
+          "enumDescriptions": [
+            "Show the percentage that is still available (default).",
+            "Show the percentage that has already been used."
+          ],
+          "default": "remaining",
+          "description": "选择状态栏显示 Codex 剩余百分比还是已使用百分比，也可以在 Codex 额度悬浮提示中点击“切换显示”选择。"
+        },
+        "codexTaskCompanion.codex.proxyUrl": {
+          "type": "string",
+          "default": "",
+          "description": "访问 Codex 额度接口时使用的 HTTP/HTTPS 代理，例如 http://127.0.0.1:7890。"
+        },
+        "codexTaskCompanion.claude.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 Claude 主任务完成通知和会话监控。Claude 子 agent 不会触发通知。"
+        },
+        "codexTaskCompanion.claude.projectsRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Claude Code projects 目录。留空自动查找 ~/.claude/projects。"
+        },
+        "codexTaskCompanion.claude.credentialsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Claude Code .credentials.json 的路径。留空自动查找 ~/.claude/.credentials.json。"
+        },
+        "codexTaskCompanion.claude.sessionPollMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "description": "Claude 会话 JSONL 的轮询间隔（毫秒）。"
+        },
+        "codexTaskCompanion.claude.sessionLookbackDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 1,
+          "maximum": 30,
+          "description": "扫描最近多少天有变化的 Claude 会话文件。"
+        },
+        "codexTaskCompanion.claude.notifyInitialScan": {
+          "type": "boolean",
+          "default": false,
+          "description": "首次扫描时是否通知已经完成的历史 Claude 主任务。默认关闭。"
+        },
+        "codexTaskCompanion.claude.usageUpdateIntervalSeconds": {
+          "type": "number",
+          "default": 1800,
+          "minimum": 30,
+          "description": "Claude 额度刷新间隔（秒），默认 30 分钟。"
+        },
+        "codexTaskCompanion.claude.usageDisplayMode": {
+          "type": "string",
+          "enum": [
+            "remaining",
+            "used"
+          ],
+          "enumDescriptions": [
+            "Show the Claude percentage that is still available (default).",
+            "Show the Claude percentage that has already been used."
+          ],
+          "default": "remaining",
+          "description": "选择 Claude 状态栏显示剩余百分比还是已使用百分比，也可以在 Claude 额度悬浮提示中点击“切换显示”选择。"
+        },
+        "codexTaskCompanion.claude.proxyUrl": {
+          "type": "string",
+          "default": "",
+          "description": "访问 Claude 额度接口时使用的 HTTP/HTTPS 代理，例如 http://127.0.0.1:7890。"
+        },
+        "codexTaskCompanion.terminal.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用普通 VS Code 终端中的 Python 任务完成通知。"
+        },
+        "codexTaskCompanion.terminal.pythonCommandPattern": {
+          "type": "string",
+          "default": "(?:^|[\\s;&|\"'(/\\\\])(?:python(?:\\.exe|\\d+(?:\\.\\d+)*)?|py(?:\\.exe)?)(?=\\s|$)",
+          "description": "用于识别 Python 命令的 JavaScript 正则表达式，支持 python、python3、py、绝对路径和 uv/poetry/conda run python。"
+        },
+        "codexTaskCompanion.terminal.notifyOnFailure": {
+          "type": "boolean",
+          "default": true,
+          "description": "Python 命令以非零退出码结束时是否也发送通知。"
+        },
+        "codexTaskCompanion.terminal.cooldownMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 0,
+          "description": "同一终端连续通知之间的最小间隔（毫秒）。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "test:unit": "npm run compile && node --test out/src/test/core.test.js",
+    "vscode:prepublish": "npm run compile",
+    "package": "npm run compile && vsce package"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "node-notifier": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/node-notifier": "^8.0.5",
+    "@types/vscode": "^1.93.0",
+    "typescript": "^5.5.4",
+    "vsce": "^2.15.0"
+  }
+}

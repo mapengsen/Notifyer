@@ -1,0 +1,11 @@
+.vscode/**
+.github/**
+src/**
+test/**
+*.ts
+tsconfig.json
+README.md
+package-lock.json
+node_modules/.cache/**
+out/**/*.map
+out/src/test/**
