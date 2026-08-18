@@ -3,7 +3,7 @@ import { ClaudeSessionMonitor } from "./claudeSessionMonitor";
 import { ClaudeUsageMonitor } from "./claudeUsage";
 import { CodexSessionMonitor } from "./sessionMonitor";
 import { initializeNotifications, notifyDesktop } from "./notify";
-import { PythonTerminalMonitor } from "./terminalMonitor";
+import { TerminalMonitor } from "./terminalMonitor";
 import { UsageMonitor } from "./usage";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const usageMonitor = new UsageMonitor();
   const claudeSessionMonitor = new ClaudeSessionMonitor();
   const claudeUsageMonitor = new ClaudeUsageMonitor();
-  const terminalMonitor = new PythonTerminalMonitor();
+  const terminalMonitor = new TerminalMonitor();
   const diagnostics = vscode.window.createOutputChannel("Notifyer");
 
   context.subscriptions.push(

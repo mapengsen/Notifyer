@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DEFAULT_PYTHON_COMMAND_PATTERN,
+  DEFAULT_IGNORED_TERMINAL_COMMANDS,
   isClaudeMainTaskCompletion,
   isChildSessionMeta,
-  isPythonCommand,
   remainingPercent,
+  shouldNotifyTerminalCommand,
 } from "../core";
 
 test("remainingPercent converts and clamps used percentage", () => {
@@ -14,13 +14,29 @@ test("remainingPercent converts and clamps used percentage", () => {
   assert.equal(remainingPercent(-10), 100);
 });
 
-test("python command matching covers common interpreters", () => {
-  assert.equal(isPythonCommand("python train.py", DEFAULT_PYTHON_COMMAND_PATTERN), true);
-  assert.equal(isPythonCommand("python3.11 -m pytest", DEFAULT_PYTHON_COMMAND_PATTERN), true);
-  assert.equal(isPythonCommand("/usr/bin/python3 script.py", DEFAULT_PYTHON_COMMAND_PATTERN), true);
-  assert.equal(isPythonCommand("C:\\Python311\\python.exe script.py", DEFAULT_PYTHON_COMMAND_PATTERN), true);
-  assert.equal(isPythonCommand("uv run python app.py", DEFAULT_PYTHON_COMMAND_PATTERN), true);
-  assert.equal(isPythonCommand("echo python is installed", DEFAULT_PYTHON_COMMAND_PATTERN), false);
+test("terminal command filtering ignores common shell commands", () => {
+  assert.equal(shouldNotifyTerminalCommand("ls -la"), false);
+  assert.equal(shouldNotifyTerminalCommand("ll"), false);
+  assert.equal(shouldNotifyTerminalCommand("pwd"), false);
+  assert.equal(shouldNotifyTerminalCommand("/usr/bin/ls -la"), false);
+  assert.equal(shouldNotifyTerminalCommand("sudo ls"), false);
+  assert.equal(shouldNotifyTerminalCommand("ls && pwd"), false);
+  assert.equal(DEFAULT_IGNORED_TERMINAL_COMMANDS.includes("ls"), true);
+});
+
+test("terminal command filtering notifies for other commands", () => {
+  assert.equal(shouldNotifyTerminalCommand("python train.py"), true);
+  assert.equal(shouldNotifyTerminalCommand("npm run build"), true);
+  assert.equal(shouldNotifyTerminalCommand("git status"), true);
+  assert.equal(shouldNotifyTerminalCommand("sudo npm test"), true);
+  assert.equal(shouldNotifyTerminalCommand("APP_ENV=test npm test"), true);
+  assert.equal(shouldNotifyTerminalCommand("cd project && npm test"), true);
+  assert.equal(shouldNotifyTerminalCommand("ls && npm test"), true);
+});
+
+test("terminal command filtering accepts a custom ignored-command list", () => {
+  assert.equal(shouldNotifyTerminalCommand("npm run build", ["npm"]), false);
+  assert.equal(shouldNotifyTerminalCommand("npm run build", ["ls"]), true);
 });
 
 test("subagent session metadata is filtered", () => {

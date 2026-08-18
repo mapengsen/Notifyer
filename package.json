@@ -1,8 +1,8 @@
 {
   "name": "codex-task-companion",
   "displayName": "Notifyer",
-  "description": "Desktop notifications for Codex and Claude main-task completion, Python terminal tasks, and remaining usage quotas in the VS Code status bar.",
-  "version": "0.2.12",
+  "description": "Desktop notifications for Codex and Claude main-task completion, terminal tasks, and remaining usage quotas in the VS Code status bar.",
+  "version": "0.2.16",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -211,17 +211,67 @@
         "codexTaskCompanion.terminal.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "启用普通 VS Code 终端中的 Python 任务完成通知。"
+          "description": "启用普通 VS Code 终端命令完成通知。"
         },
-        "codexTaskCompanion.terminal.pythonCommandPattern": {
-          "type": "string",
-          "default": "(?:^|[\\s;&|\"'(/\\\\])(?:python(?:\\.exe|\\d+(?:\\.\\d+)*)?|py(?:\\.exe)?)(?=\\s|$)",
-          "description": "用于识别 Python 命令的 JavaScript 正则表达式，支持 python、python3、py、绝对路径和 uv/poetry/conda run python。"
+        "codexTaskCompanion.terminal.ignoredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "alias",
+            "bg",
+            "cat",
+            "cd",
+            "clear",
+            "cls",
+            "command",
+            "date",
+            "df",
+            "dirs",
+            "du",
+            "echo",
+            "dir",
+            "exit",
+            "false",
+            "fg",
+            "free",
+            "head",
+            "help",
+            "history",
+            "id",
+            "jobs",
+            "l",
+            "la",
+            "less",
+            "ll",
+            "ls",
+            "logout",
+            "man",
+            "more",
+            "popd",
+            "printf",
+            "pwd",
+            "pushd",
+            "set",
+            "source",
+            "tail",
+            "true",
+            "type",
+            "unalias",
+            "uname",
+            "unset",
+            "uptime",
+            "whoami",
+            "which",
+            "where"
+          ],
+          "description": "默认监听所有终端命令，但命令名在此列表中的不发送通知。可按需添加或删除命令，例如 ls、ll、pwd。"
         },
         "codexTaskCompanion.terminal.notifyOnFailure": {
           "type": "boolean",
           "default": true,
-          "description": "Python 命令以非零退出码结束时是否也发送通知。"
+          "description": "终端命令以非零退出码结束时是否也发送通知。"
         },
         "codexTaskCompanion.terminal.cooldownMs": {
           "type": "number",
