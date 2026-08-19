@@ -1,16 +1,17 @@
 import * as vscode from "vscode";
-import { DEFAULT_PYTHON_COMMAND_PATTERN, isPythonCommand, truncate } from "./core";
+import { DEFAULT_IGNORED_TERMINAL_COMMANDS, shouldNotifyTerminalCommand, truncate } from "./core";
 import { notifyDesktop } from "./notify";
 
 interface TerminalWindowWithShellEvents {
   onDidEndTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
 }
 
-export class PythonTerminalMonitor implements vscode.Disposable {
+export class TerminalMonitor implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private enabled = true;
+  private pythonOnly = true;
   private notifyOnFailure = true;
-  private pattern = DEFAULT_PYTHON_COMMAND_PATTERN;
+  private ignoredCommands: readonly string[] = DEFAULT_IGNORED_TERMINAL_COMMANDS;
   private cooldownMs = 1500;
   private lastNotificationByTerminal = new WeakMap<object, number>();
   private supported = false;
@@ -35,7 +36,8 @@ export class PythonTerminalMonitor implements vscode.Disposable {
     return {
       enabled: this.enabled,
       supported: this.supported,
-      pattern: this.pattern,
+      pythonOnly: this.pythonOnly,
+      ignoredCommands: this.ignoredCommands,
       notifyOnFailure: this.notifyOnFailure,
     };
   }
@@ -47,15 +49,20 @@ export class PythonTerminalMonitor implements vscode.Disposable {
   private reloadConfiguration(): void {
     const config = vscode.workspace.getConfiguration("codexTaskCompanion.terminal");
     this.enabled = config.get<boolean>("enabled", true);
+    this.pythonOnly = config.get<boolean>("pythonOnly", true);
     this.notifyOnFailure = config.get<boolean>("notifyOnFailure", true);
-    this.pattern = config.get<string>("pythonCommandPattern", DEFAULT_PYTHON_COMMAND_PATTERN);
+    const configuredIgnoredCommands = config.get<unknown>("ignoredCommands", DEFAULT_IGNORED_TERMINAL_COMMANDS);
+    this.ignoredCommands = Array.isArray(configuredIgnoredCommands) &&
+      configuredIgnoredCommands.every((command) => typeof command === "string")
+      ? configuredIgnoredCommands
+      : DEFAULT_IGNORED_TERMINAL_COMMANDS;
     this.cooldownMs = Math.max(0, config.get<number>("cooldownMs", 1500));
   }
 
   private handleEnd(event: vscode.TerminalShellExecutionEndEvent): void {
     if (!this.enabled) return;
     const commandLine = getCommandLine(event.execution.commandLine);
-    if (!isPythonCommand(commandLine, this.pattern)) return;
+    if (!shouldNotifyTerminalCommand(commandLine, this.ignoredCommands, this.pythonOnly)) return;
 
     const exitCode = event.exitCode;
     if (!this.notifyOnFailure && exitCode !== 0) return;
@@ -68,9 +75,11 @@ export class PythonTerminalMonitor implements vscode.Disposable {
 
     const success = exitCode === 0;
     const status = exitCode === undefined ? "退出码未知" : `退出码 ${exitCode}`;
-    const title = success ? "Python 任务已完成" : "Python 任务失败";
+    const title = success ? "终端任务已完成" : "终端任务失败";
     const message = `${event.terminal.name} · ${status}\n${truncate(commandLine, 220)}`;
-    void notifyDesktop(title, message, success ? "info" : "error", "terminal");
+    void notifyDesktop(title, message, success ? "info" : "error", "terminal", {
+      focus: () => event.terminal.show(false),
+    });
   }
 }
 

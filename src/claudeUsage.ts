@@ -2,11 +2,12 @@ import axios, { AxiosProxyConfig } from "axios";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { clampPercent, formatResetTime, remainingPercent } from "./core";
+import { clampPercent, formatQuotaStatus, formatResetTime, remainingPercent } from "./core";
 import {
-  collectRemoteWindowsCredentialUris,
-  findRemoteHome,
-  readDefaultWslFile,
+  getRemoteWorkspaceReference,
+  isRemoteWindow,
+  resolveConfiguredCredentialUri,
+  resolveRemoteCredentialUri,
 } from "./credentialLocations";
 import type { UsageDisplayMode } from "./usage";
 
@@ -78,7 +79,7 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
       const auths = await loadClaudeAuthDataCandidates();
       if (!auths.length) {
         this.snapshot = undefined;
-        this.lastError = "Claude OAuth credentials were not found in Windows or WSL.";
+        this.lastError = "Claude OAuth credentials were not found in the current VS Code environment.";
         this.renderAuthRequired();
         return;
       }
@@ -192,9 +193,11 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
   private renderSnapshot(snapshot: ClaudeUsageSnapshot): void {
     const primary = snapshot.fiveHour ?? snapshot.sevenDay ?? snapshot.sevenDayOpus ?? snapshot.sevenDaySonnet;
     const displayPercent = primary ? getDisplayPercent(primary, this.displayMode) : undefined;
-    const displayLabel = this.displayMode === "remaining" ? "left" : "used";
-    this.statusBar.text = primary
-      ? `$(sparkle) Claude ${displayPercent?.toFixed(0)}% ${displayLabel}`
+    const presentation = primary && displayPercent !== undefined
+      ? formatQuotaStatus(displayPercent, this.displayMode, primary.resetsInSeconds, snapshot.updatedAt)
+      : undefined;
+    this.statusBar.text = presentation
+      ? `$(sparkle) ${presentation.statusText}`
       : "$(sparkle) Claude --";
     this.statusBar.show();
     this.statusBar.color = undefined;
@@ -206,7 +209,7 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
     this.statusBar.text = "$(sparkle) Claude --";
     this.statusBar.hide();
     this.statusBar.color = new vscode.ThemeColor("editorWarning.foreground");
-    this.statusBar.tooltip = "Claude OAuth credentials not found or expired. Run claude /login, then click refresh.";
+    this.statusBar.tooltip = "Claude OAuth credentials were not found or usable in the current VS Code environment. Run claude /login there, then click refresh.";
   }
 
   private renderError(): void {
@@ -241,9 +244,6 @@ async function loadClaudeAuthDataCandidates(): Promise<ClaudeAuthData[]> {
     }
   }
 
-  const wslText = await readDefaultWslFile(".claude/.credentials.json");
-  const wslAuth = wslText ? parseClaudeAuthData(wslText) : undefined;
-  if (wslAuth && !seenTokens.has(wslAuth.accessToken)) auths.push(wslAuth);
   return auths;
 }
 
@@ -316,19 +316,59 @@ function parseClaudeWindow(raw: unknown, nowMs: number): ClaudeUsageWindow | und
 function buildClaudeUsageTooltip(snapshot: ClaudeUsageSnapshot, displayMode: UsageDisplayMode): vscode.MarkdownString {
   const tooltip = new vscode.MarkdownString();
   tooltip.isTrusted = true;
-  const displayLabel = displayMode === "remaining" ? "Remaining" : "Used";
-  tooltip.appendMarkdown(`**Claude ${displayLabel} Usage**\n\n`);
-  if (snapshot.subscriptionType) {
-    tooltip.appendMarkdown(`Plan: ${escapeMarkdown(snapshot.subscriptionType)}\n\n`);
+  const displayLabel = displayMode === "remaining" ? "剩余" : "已使用";
+  tooltip.appendMarkdown(`**Claude ${displayLabel}额度**\n\n`);
+  const primary = snapshot.fiveHour ?? snapshot.sevenDay ?? snapshot.sevenDayOpus ?? snapshot.sevenDaySonnet;
+  const primaryLabel = snapshot.fiveHour
+    ? "5 小时窗口"
+    : snapshot.sevenDay
+      ? "7 天窗口"
+      : snapshot.sevenDayOpus
+        ? "7 天 Opus 窗口"
+        : "7 天 Sonnet 窗口";
+  if (primary) {
+    appendClaudeStatusBarMeaning(tooltip, primaryLabel, primary, displayMode, snapshot.updatedAt);
   }
-  tooltip.appendMarkdown("> Usage comes from Claude Code's local OAuth session and Anthropic's usage endpoint.\n\n");
-  appendClaudeWindow(tooltip, "5-hour session", snapshot.fiveHour, displayMode);
-  appendClaudeWindow(tooltip, "7-day window", snapshot.sevenDay, displayMode);
-  appendClaudeWindow(tooltip, "7-day Opus", snapshot.sevenDayOpus, displayMode);
-  appendClaudeWindow(tooltip, "7-day Sonnet", snapshot.sevenDaySonnet, displayMode);
-  tooltip.appendMarkdown(`\nUpdated: ${snapshot.updatedAt.toLocaleTimeString()}\n\n`);
-  tooltip.appendMarkdown("[Refresh](command:codexTaskCompanion.refreshClaudeUsage) · [Switch display](command:codexTaskCompanion.chooseClaudeUsageDisplayMode) · [Open settings](command:codexTaskCompanion.openSettings)");
+  if (snapshot.subscriptionType) {
+    tooltip.appendMarkdown(`套餐：${escapeMarkdown(snapshot.subscriptionType)}\n\n`);
+  }
+  tooltip.appendMarkdown("> 额度信息来自当前环境中的 Claude Code OAuth 会话及 Anthropic 额度接口。\n\n");
+  appendClaudeWindow(tooltip, "5 小时窗口", snapshot.fiveHour, displayMode);
+  appendClaudeWindow(tooltip, "7 天窗口", snapshot.sevenDay, displayMode);
+  appendClaudeWindow(tooltip, "7 天 Opus", snapshot.sevenDayOpus, displayMode);
+  appendClaudeWindow(tooltip, "7 天 Sonnet", snapshot.sevenDaySonnet, displayMode);
+  tooltip.appendMarkdown(`\n最后更新：${snapshot.updatedAt.toLocaleTimeString()}\n\n`);
+  tooltip.appendMarkdown("[立即刷新](command:codexTaskCompanion.refreshClaudeUsage) · [切换显示](command:codexTaskCompanion.chooseClaudeUsageDisplayMode) · [打开设置](command:codexTaskCompanion.openSettings)");
   return tooltip;
+}
+
+function appendClaudeStatusBarMeaning(
+  tooltip: vscode.MarkdownString,
+  windowLabel: string,
+  window: ClaudeUsageWindow,
+  displayMode: UsageDisplayMode,
+  updatedAt: Date,
+): void {
+  const presentation = formatQuotaStatus(
+    getDisplayPercent(window, displayMode),
+    displayMode,
+    window.resetsInSeconds,
+    updatedAt,
+  );
+  if (!presentation) return;
+
+  const percentageMeaning = displayMode === "remaining"
+    ? `当前${windowLabel}还剩 ${presentation.percentageText} 可用额度`
+    : `当前${windowLabel}已经使用 ${presentation.percentageText} 额度`;
+  const resetMeaning = presentation.resetDateTime
+    ? `当前${windowLabel}的重置时间，按本地时区显示`
+    : `额度接口暂未提供当前${windowLabel}的重置时间`;
+
+  tooltip.appendMarkdown("**状态栏含义**\n\n");
+  tooltip.appendMarkdown(`\`${presentation.statusText}\`\n\n`);
+  tooltip.appendMarkdown(`- \`${presentation.percentageText} ${presentation.modeLabel}\`：${percentageMeaning}。\n\n`);
+  tooltip.appendMarkdown(`- \`${presentation.resetDateTime ?? "--"}\`：${resetMeaning}。\n\n`);
+  tooltip.appendMarkdown("> Claude 状态栏优先展示 5 小时窗口；不可用时依次展示 7 天、Opus 和 Sonnet 窗口。\n\n");
 }
 
 function appendClaudeWindow(
@@ -338,12 +378,12 @@ function appendClaudeWindow(
   displayMode: UsageDisplayMode,
 ): void {
   if (!window) return;
-  const displayLabel = displayMode === "remaining" ? "remaining" : "used";
-  const otherLabel = displayMode === "remaining" ? "used" : "remaining";
+  const displayLabel = displayMode === "remaining" ? "剩余" : "已使用";
+  const otherLabel = displayMode === "remaining" ? "已使用" : "剩余";
   const displayPercent = getDisplayPercent(window, displayMode);
   const otherPercent = getDisplayPercent(window, displayMode === "remaining" ? "used" : "remaining");
-  const reset = window.resetsInSeconds === undefined ? "unknown reset" : `resets in ${formatResetTime(window.resetsInSeconds)}`;
-  tooltip.appendMarkdown(`**${label}**: ${displayLabel} **${displayPercent.toFixed(1)}%**, ${otherLabel} ${otherPercent.toFixed(1)}% (${reset}).\n\n`);
+  const reset = window.resetsInSeconds === undefined ? "重置时间未知" : `${formatResetTime(window.resetsInSeconds)} 后重置`;
+  tooltip.appendMarkdown(`**${label}**：${displayLabel} **${displayPercent.toFixed(1)}%**，${otherLabel} ${otherPercent.toFixed(1)}%（${reset}）。\n\n`);
 }
 
 function getDisplayPercent(window: ClaudeUsageWindow, mode: UsageDisplayMode): number {
@@ -358,56 +398,32 @@ function getClaudeUsageDisplayMode(): UsageDisplayMode {
 }
 
 async function resolveClaudeCredentialsUris(): Promise<vscode.Uri[]> {
-  const uris: vscode.Uri[] = [];
-  const seen = new Set<string>();
-  const add = (uri: vscode.Uri | undefined): void => {
-    if (!uri) return;
-    const key = uri.toString();
-    if (!seen.has(key)) {
-      seen.add(key);
-      uris.push(uri);
-    }
-  };
-
   const config = vscode.workspace.getConfiguration("codexTaskCompanion.claude");
   const configured = config.get<string>("credentialsPath", "").trim();
+
+  if (isRemoteWindow()) {
+    const reference = getRemoteWorkspaceReference();
+    if (!reference) return [];
+    const uri = configured
+      ? await resolveConfiguredCredentialUri(configured, reference)
+      : await resolveRemoteCredentialUri(reference, {
+        configDirectoryVariable: "CLAUDE_CONFIG_DIR",
+        defaultDirectoryName: ".claude",
+        fileName: ".credentials.json",
+      });
+    return uri ? [uri] : [];
+  }
+
   if (configured) {
-    add(await resolveConfiguredPath(configured));
-    return uris;
+    const uri = await resolveConfiguredCredentialUri(configured);
+    return uri ? [uri] : [];
   }
 
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (folder?.uri.scheme !== "file" && folder?.uri) {
-    const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
-    if (configDir?.startsWith("/")) {
-      add(folder.uri.with({ path: path.posix.join(configDir, ".credentials.json") }));
-    }
-    const home = await findRemoteHome(folder.uri, [".claude", ".credentials.json"]);
-    if (home) add(vscode.Uri.joinPath(home, ".claude", ".credentials.json"));
-    for (const uri of await collectRemoteWindowsCredentialUris(folder.uri, [".claude", ".credentials.json"])) add(uri);
-  }
-
-  const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
-  if (configDir && !configDir.startsWith("/")) {
-    add(vscode.Uri.file(path.join(configDir, ".credentials.json")));
-  }
-  add(vscode.Uri.file(path.join(os.homedir(), ".claude", ".credentials.json")));
-  return uris;
-}
-
-async function resolveConfiguredPath(value: string): Promise<vscode.Uri | undefined> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (folder?.uri.scheme !== "file" && folder?.uri) {
-    if (value.startsWith("~")) {
-      const home = await findRemoteHome(folder.uri, [".claude", ".credentials.json"]);
-      return home ? vscode.Uri.joinPath(home, ...splitSegments(value.slice(1))) : undefined;
-    }
-    if (value.startsWith("/")) return folder.uri.with({ path: value.replace(/\\/g, "/") });
-    return vscode.Uri.joinPath(folder.uri, ...splitSegments(value));
-  }
-  if (isWindowsAbsolute(value) || path.isAbsolute(value)) return vscode.Uri.file(value);
-  if (value.startsWith("~")) return vscode.Uri.file(path.join(os.homedir(), value.slice(1)));
-  return vscode.Uri.file(path.join(os.homedir(), value));
+  const configuredDirectory = process.env.CLAUDE_CONFIG_DIR?.trim();
+  const claudeConfigDirectory = configuredDirectory
+    ? path.resolve(configuredDirectory)
+    : path.join(os.homedir(), ".claude");
+  return [vscode.Uri.file(path.join(claudeConfigDirectory, ".credentials.json"))];
 }
 
 function getClaudeProxyUrl(): string {
@@ -456,14 +472,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-function isWindowsAbsolute(value: string): boolean {
-  return /^[A-Za-z]:[\\/]/.test(value);
-}
-
-function splitSegments(value: string): string[] {
-  return value.split(/[\\/]+/).filter(Boolean);
 }
 
 function escapeMarkdown(value: string): string {

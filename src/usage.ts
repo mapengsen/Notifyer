@@ -2,11 +2,12 @@ import axios, { AxiosProxyConfig } from "axios";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
-import { clampPercent, formatResetTime, remainingPercent } from "./core";
+import { clampPercent, formatQuotaStatus, formatResetTime, remainingPercent } from "./core";
 import {
-  collectRemoteWindowsCredentialUris,
-  findRemoteHome,
-  readDefaultWslFile,
+  getRemoteWorkspaceReference,
+  isRemoteWindow,
+  resolveConfiguredCredentialUri,
+  resolveRemoteCredentialUri,
 } from "./credentialLocations";
 
 interface AuthData {
@@ -79,7 +80,7 @@ export class UsageMonitor implements vscode.Disposable {
       const auths = await loadAuthDataCandidates();
       if (!auths.length) {
         this.snapshot = undefined;
-        this.lastError = "未找到可用的 Windows 或 WSL Codex 登录凭据";
+        this.lastError = "当前 VS Code 环境中未找到可用的 Codex 登录凭据";
         this.renderAuthRequired();
         return;
       }
@@ -190,9 +191,11 @@ export class UsageMonitor implements vscode.Disposable {
   private renderSnapshot(snapshot: UsageSnapshot): void {
     const primary = snapshot.primary ?? snapshot.secondary;
     const displayPercent = primary ? getDisplayPercent(primary, this.displayMode) : undefined;
-    const displayLabel = this.displayMode === "remaining" ? "left" : "used";
-    this.statusBar.text = primary
-      ? `$(codex-blossom) Codex ${displayPercent?.toFixed(0)}% ${displayLabel}`
+    const presentation = primary && displayPercent !== undefined
+      ? formatQuotaStatus(displayPercent, this.displayMode, primary.resetsInSeconds, snapshot.updatedAt)
+      : undefined;
+    this.statusBar.text = presentation
+      ? `$(codex-blossom) ${presentation.statusText}`
       : "$(codex-blossom) Codex --";
     this.statusBar.show();
     this.statusBar.color = undefined;
@@ -204,7 +207,7 @@ export class UsageMonitor implements vscode.Disposable {
     this.statusBar.text = "$(codex-blossom) Codex --";
     this.statusBar.hide();
     this.statusBar.color = new vscode.ThemeColor("editorWarning.foreground");
-    this.statusBar.tooltip = "未找到或无法使用 Codex 登录信息。请先运行 codex login，然后点击刷新。";
+    this.statusBar.tooltip = "当前 VS Code 环境中未找到或无法使用 Codex 登录信息。请在当前环境运行 codex login，然后点击刷新。";
   }
 
   private renderError(): void {
@@ -227,9 +230,6 @@ async function loadAuthDataCandidates(): Promise<AuthData[]> {
     }
   }
 
-  const wslText = await readDefaultWslFile(".codex/auth.json");
-  const wslAuth = wslText ? parseAuthData(wslText) : undefined;
-  if (wslAuth && !seenTokens.has(wslAuth.accessToken)) auths.push(wslAuth);
   return auths;
 }
 
@@ -263,35 +263,34 @@ function parseAuthData(text: string): AuthData | undefined {
 }
 
 async function resolveCodexAuthUris(): Promise<vscode.Uri[]> {
-  const uris: vscode.Uri[] = [];
-  const seen = new Set<string>();
-  const add = (uri: vscode.Uri | undefined): void => {
-    if (!uri) return;
-    const key = uri.toString();
-    if (!seen.has(key)) {
-      seen.add(key);
-      uris.push(uri);
-    }
-  };
+  const configuredPath = vscode.workspace
+    .getConfiguration("codexTaskCompanion.codex")
+    .get<string>("credentialsPath", "")
+    .trim();
 
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (folder?.uri.scheme !== "file" && folder?.uri) {
-    const configured = process.env.CODEX_HOME?.trim();
-    if (configured?.startsWith("/")) {
-      add(folder.uri.with({ path: path.posix.join(configured, "auth.json") }));
-    }
-
-    const home = await findRemoteHome(folder.uri, [".codex", "auth.json"]);
-    if (home) add(vscode.Uri.joinPath(home, ".codex", "auth.json"));
-    for (const uri of await collectRemoteWindowsCredentialUris(folder.uri, [".codex", "auth.json"])) add(uri);
+  if (isRemoteWindow()) {
+    const reference = getRemoteWorkspaceReference();
+    if (!reference) return [];
+    const uri = configuredPath
+      ? await resolveConfiguredCredentialUri(configuredPath, reference)
+      : await resolveRemoteCredentialUri(reference, {
+        configDirectoryVariable: "CODEX_HOME",
+        defaultDirectoryName: ".codex",
+        fileName: "auth.json",
+      });
+    return uri ? [uri] : [];
   }
 
-  const configured = process.env.CODEX_HOME?.trim();
-  if (configured && !configured.startsWith("/")) {
-    add(vscode.Uri.file(path.join(configured, "auth.json")));
+  if (configuredPath) {
+    const uri = await resolveConfiguredCredentialUri(configuredPath);
+    return uri ? [uri] : [];
   }
-  add(vscode.Uri.file(path.join(os.homedir(), ".codex", "auth.json")));
-  return uris;
+
+  const configuredHome = process.env.CODEX_HOME?.trim();
+  const codexHome = configuredHome
+    ? path.resolve(configuredHome)
+    : path.join(os.homedir(), ".codex");
+  return [vscode.Uri.file(path.join(codexHome, "auth.json"))];
 }
 
 function parseJwt(token: string): Record<string, unknown> {
@@ -397,6 +396,11 @@ function buildUsageTooltip(snapshot: UsageSnapshot, displayMode: UsageDisplayMod
   tooltip.isTrusted = true;
   const displayLabel = displayMode === "remaining" ? "剩余" : "已使用";
   tooltip.appendMarkdown(`**Codex ${displayLabel}额度**\n\n`);
+  const primary = snapshot.primary ?? snapshot.secondary;
+  const primaryLabel = snapshot.primary ? "短窗口" : "长窗口";
+  if (primary) {
+    appendStatusBarMeaning(tooltip, primaryLabel, primary, displayMode, snapshot.updatedAt);
+  }
   tooltip.appendMarkdown(`账户：${escapeMarkdown(snapshot.email)}\n\n`);
   tooltip.appendMarkdown(`套餐：${escapeMarkdown(snapshot.planType)}\n\n`);
   tooltip.appendMarkdown("> 这里显示的是当前时间窗口的百分比，不是绝对请求数或 Token 数。\n\n");
@@ -405,6 +409,35 @@ function buildUsageTooltip(snapshot: UsageSnapshot, displayMode: UsageDisplayMod
   tooltip.appendMarkdown(`\n最后更新：${snapshot.updatedAt.toLocaleTimeString()}\n\n`);
   tooltip.appendMarkdown("[立即刷新](command:codexTaskCompanion.refreshUsage) · [切换显示](command:codexTaskCompanion.chooseUsageDisplayMode) · [打开设置](command:codexTaskCompanion.openSettings)");
   return tooltip;
+}
+
+function appendStatusBarMeaning(
+  tooltip: vscode.MarkdownString,
+  windowLabel: string,
+  window: UsageWindow,
+  displayMode: UsageDisplayMode,
+  updatedAt: Date,
+): void {
+  const presentation = formatQuotaStatus(
+    getDisplayPercent(window, displayMode),
+    displayMode,
+    window.resetsInSeconds,
+    updatedAt,
+  );
+  if (!presentation) return;
+
+  const percentageMeaning = displayMode === "remaining"
+    ? `当前${windowLabel}还剩 ${presentation.percentageText} 可用额度`
+    : `当前${windowLabel}已经使用 ${presentation.percentageText} 额度`;
+  const resetMeaning = presentation.resetDateTime
+    ? `当前${windowLabel}的重置时间，按本地时区显示`
+    : `额度接口暂未提供当前${windowLabel}的重置时间`;
+
+  tooltip.appendMarkdown("**状态栏含义**\n\n");
+  tooltip.appendMarkdown(`\`${presentation.statusText}\`\n\n`);
+  tooltip.appendMarkdown(`- \`${presentation.percentageText} ${presentation.modeLabel}\`：${percentageMeaning}。\n\n`);
+  tooltip.appendMarkdown(`- \`${presentation.resetDateTime ?? "--"}\`：${resetMeaning}。\n\n`);
+  tooltip.appendMarkdown("> Codex 状态栏优先展示短窗口；短窗口不可用时才展示长窗口。\n\n");
 }
 
 function appendWindow(

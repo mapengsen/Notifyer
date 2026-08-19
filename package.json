@@ -1,8 +1,8 @@
 {
   "name": "codex-task-companion",
   "displayName": "Notifyer",
-  "description": "Desktop notifications for Codex and Claude main-task completion, Python terminal tasks, and remaining usage quotas in the VS Code status bar.",
-  "version": "0.2.12",
+  "description": "Desktop notifications for Codex and Claude main-task completion, terminal tasks, and remaining usage quotas in the VS Code status bar.",
+  "version": "0.2.19",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -127,6 +127,11 @@
           "default": false,
           "description": "首次扫描时是否也通知已经完成的历史主任务。默认关闭，避免启动 VS Code 时产生历史通知。"
         },
+        "codexTaskCompanion.codex.credentialsPath": {
+          "type": "string",
+          "default": "",
+          "description": "当前 VS Code 环境中的 Codex auth.json 路径。留空时，本地 Windows 读取 %USERPROFILE%\\.codex\\auth.json，WSL/SSH/容器读取当前远程用户的 ~/.codex/auth.json。不会跨环境回退。"
+        },
         "codexTaskCompanion.codex.usageUpdateIntervalSeconds": {
           "type": "number",
           "default": 1800,
@@ -164,7 +169,7 @@
         "codexTaskCompanion.claude.credentialsPath": {
           "type": "string",
           "default": "",
-          "description": "Claude Code .credentials.json 的路径。留空自动查找 ~/.claude/.credentials.json。"
+          "description": "当前 VS Code 环境中的 Claude Code .credentials.json 路径。留空时，本地 Windows 读取 %USERPROFILE%\\.claude\\.credentials.json，WSL/SSH/容器读取当前远程用户的 ~/.claude/.credentials.json。不会跨环境回退。"
         },
         "codexTaskCompanion.claude.sessionPollMs": {
           "type": "number",
@@ -211,17 +216,72 @@
         "codexTaskCompanion.terminal.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "启用普通 VS Code 终端中的 Python 任务完成通知。"
+          "description": "启用普通 VS Code 终端命令完成通知。"
         },
-        "codexTaskCompanion.terminal.pythonCommandPattern": {
-          "type": "string",
-          "default": "(?:^|[\\s;&|\"'(/\\\\])(?:python(?:\\.exe|\\d+(?:\\.\\d+)*)?|py(?:\\.exe)?)(?=\\s|$)",
-          "description": "用于识别 Python 命令的 JavaScript 正则表达式，支持 python、python3、py、绝对路径和 uv/poetry/conda run python。"
+        "codexTaskCompanion.terminal.pythonOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "仅在 Python 命令完成时发送终端通知（默认开启）。支持 python、python3、python3.12、py、pythonw，以及 /opt/conda/envs/.../bin/python 等完整可执行文件路径；关闭后恢复监听忽略列表之外的全部命令。"
+        },
+        "codexTaskCompanion.terminal.ignoredCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "alias",
+            "bg",
+            "cat",
+            "cd",
+            "clear",
+            "cls",
+            "command",
+            "date",
+            "df",
+            "dirs",
+            "du",
+            "echo",
+            "dir",
+            "exit",
+            "false",
+            "fg",
+            "free",
+            "head",
+            "help",
+            "history",
+            "id",
+            "jobs",
+            "l",
+            "la",
+            "less",
+            "ll",
+            "ls",
+            "logout",
+            "man",
+            "more",
+            "popd",
+            "printf",
+            "pwd",
+            "pushd",
+            "set",
+            "source",
+            "tail",
+            "true",
+            "type",
+            "unalias",
+            "uname",
+            "unset",
+            "uptime",
+            "whoami",
+            "which",
+            "where"
+          ],
+          "description": "命令名在此列表中时不发送通知。默认的仅 Python 模式下可用它排除特定 Python 命令；关闭 terminal.pythonOnly 后，它用于过滤所有终端命令，例如 ls、ll、pwd。"
         },
         "codexTaskCompanion.terminal.notifyOnFailure": {
           "type": "boolean",
           "default": true,
-          "description": "Python 命令以非零退出码结束时是否也发送通知。"
+          "description": "终端命令以非零退出码结束时是否也发送通知。"
         },
         "codexTaskCompanion.terminal.cooldownMs": {
           "type": "number",

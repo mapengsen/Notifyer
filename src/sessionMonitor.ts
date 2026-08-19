@@ -243,7 +243,11 @@ export class CodexSessionMonitor implements vscode.Disposable {
       cwd,
     };
     this.notificationCount += 1;
-    void notifyDesktop(completion.title, completion.message, completion.level, "codex", { hideTitle: true });
+    void notifyDesktop(completion.title, completion.message, completion.level, "codex", {
+      hideTitle: true,
+      workspacePath: completion.cwd,
+      projectHint: completion.projectName,
+    });
   }
 
   private getTurn(tracker: Tracker, turnId: string): TurnState {
