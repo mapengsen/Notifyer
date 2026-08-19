@@ -10,7 +10,7 @@ Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两
 
 真正消耗时间的，往往不是编码本身，而是反复切回终端查看进度。这个项目，正是为了解决这个问题而来。它提供了一组 VS Code 插件，让开发者可以把长时间运行的任务交给终端和 AI Agent，自己去处理其他工作；任务完成后，系统会通过桌面通知或 VS Code 通知及时提醒你。
 
-**Github**: [github.com/mapengsen/Notifyer](https://github.com/mapengsen/Notifyer)
+**GitHub**: [github.com/mapengsen/Notifyer](https://github.com/mapengsen/Notifyer)
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
 
@@ -36,6 +36,8 @@ Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两
 
 还可以直接在 VS Code 状态栏中显示 Codex、Claude Code 的额度使用情况，包括剩余比例、使用比例以及重置时间。不用频繁打开网页或终端，就能随时掌握当前账号状态。
 
+插件启动时，两个额度部件都会先立即刷新一次，随后在前 3 分钟内每 30 秒自动重试一次（共 6 次定时重试）；启动阶段结束后，恢复配置的常规刷新间隔，默认 10 分钟。
+
 额度凭据会按照当前 VS Code 窗口所连接的环境严格隔离：
 
 - 本地 Windows 窗口只读取 `%USERPROFILE%\.codex\auth.json` 与 `%USERPROFILE%\.claude\.credentials.json`（或当前环境设置的 `CODEX_HOME` / `CLAUDE_CONFIG_DIR`）。
@@ -46,6 +48,10 @@ Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两
 
 
 # 更新日志：
+
+## 2026年8月19日（0.2.20）：
+
+1. Codex 与 Claude 额度在启动时立即刷新，随后在前 3 分钟内每 30 秒自动重试一次，之后恢复默认 10 分钟的常规刷新间隔。
 
 ## 2026年8月19日（0.2.19）：
 

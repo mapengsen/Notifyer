@@ -2,7 +2,14 @@ import axios, { AxiosProxyConfig } from "axios";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { clampPercent, formatQuotaStatus, formatResetTime, remainingPercent } from "./core";
+import {
+  clampPercent,
+  DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS,
+  formatQuotaStatus,
+  formatResetTime,
+  remainingPercent,
+  UsageRefreshCadence,
+} from "./core";
 import {
   getRemoteWorkspaceReference,
   isRemoteWindow,
@@ -54,6 +61,7 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
   private snapshot: ClaudeUsageSnapshot | undefined;
   private lastError = "";
   private displayMode: UsageDisplayMode = getClaudeUsageDisplayMode();
+  private readonly refreshCadence = new UsageRefreshCadence();
 
   public constructor() {
     this.statusBar = vscode.window.createStatusBarItem(
@@ -68,8 +76,7 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
   }
 
   public start(): void {
-    void this.refresh();
-    this.scheduleNext();
+    void this.refresh().finally(() => this.scheduleNext());
   }
 
   public async refresh(): Promise<void> {
@@ -166,6 +173,7 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
       hasSnapshot: Boolean(this.snapshot),
       lastError: this.lastError,
       displayMode: this.displayMode,
+      startupRefreshesRemaining: this.refreshCadence.startupRefreshesRemaining,
       updatedAt: this.snapshot?.updatedAt.toISOString() ?? "",
       fiveHourRemainingPercent: this.snapshot?.fiveHour?.remainingPercent,
       sevenDayRemainingPercent: this.snapshot?.sevenDay?.remainingPercent,
@@ -179,13 +187,12 @@ export class ClaudeUsageMonitor implements vscode.Disposable {
 
   private scheduleNext(): void {
     if (this.timer) clearTimeout(this.timer);
-    const seconds = Math.max(
-      30,
-      vscode.workspace
-        .getConfiguration("codexTaskCompanion.claude")
-        .get<number>("usageUpdateIntervalSeconds", 1800),
-    );
+    const regularIntervalSeconds = vscode.workspace
+      .getConfiguration("codexTaskCompanion.claude")
+      .get<number>("usageUpdateIntervalSeconds", DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS);
+    const seconds = this.refreshCadence.getDelaySeconds(regularIntervalSeconds);
     this.timer = setTimeout(() => {
+      this.refreshCadence.consumeScheduledRefresh();
       void this.refresh().finally(() => this.scheduleNext());
     }, seconds * 1000);
   }

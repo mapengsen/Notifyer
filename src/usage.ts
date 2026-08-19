@@ -2,7 +2,14 @@ import axios, { AxiosProxyConfig } from "axios";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
-import { clampPercent, formatQuotaStatus, formatResetTime, remainingPercent } from "./core";
+import {
+  clampPercent,
+  DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS,
+  formatQuotaStatus,
+  formatResetTime,
+  remainingPercent,
+  UsageRefreshCadence,
+} from "./core";
 import {
   getRemoteWorkspaceReference,
   isRemoteWindow,
@@ -55,6 +62,7 @@ export class UsageMonitor implements vscode.Disposable {
   private snapshot: UsageSnapshot | undefined;
   private lastError = "";
   private displayMode: UsageDisplayMode = getUsageDisplayMode();
+  private readonly refreshCadence = new UsageRefreshCadence();
 
   public constructor() {
     this.statusBar = vscode.window.createStatusBarItem(
@@ -69,8 +77,7 @@ export class UsageMonitor implements vscode.Disposable {
   }
 
   public start(): void {
-    void this.refresh();
-    this.scheduleNext();
+    void this.refresh().finally(() => this.scheduleNext());
   }
 
   public async refresh(): Promise<void> {
@@ -134,6 +141,7 @@ export class UsageMonitor implements vscode.Disposable {
       hasSnapshot: Boolean(this.snapshot),
       lastError: this.lastError,
       displayMode: this.displayMode,
+      startupRefreshesRemaining: this.refreshCadence.startupRefreshesRemaining,
       updatedAt: this.snapshot?.updatedAt.toISOString() ?? "",
       primaryRemainingPercent: this.snapshot?.primary?.remainingPercent,
       secondaryRemainingPercent: this.snapshot?.secondary?.remainingPercent,
@@ -177,13 +185,12 @@ export class UsageMonitor implements vscode.Disposable {
 
   private scheduleNext(): void {
     if (this.timer) clearTimeout(this.timer);
-    const seconds = Math.max(
-      30,
-      vscode.workspace
-        .getConfiguration("codexTaskCompanion.codex")
-        .get<number>("usageUpdateIntervalSeconds", 1800),
-    );
+    const regularIntervalSeconds = vscode.workspace
+      .getConfiguration("codexTaskCompanion.codex")
+      .get<number>("usageUpdateIntervalSeconds", DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS);
+    const seconds = this.refreshCadence.getDelaySeconds(regularIntervalSeconds);
     this.timer = setTimeout(() => {
+      this.refreshCadence.consumeScheduledRefresh();
       void this.refresh().finally(() => this.scheduleNext());
     }, seconds * 1000);
   }

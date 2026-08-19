@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications for Codex and Claude main-task completion, terminal tasks, and remaining usage quotas in the VS Code status bar.",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -134,9 +134,9 @@
         },
         "codexTaskCompanion.codex.usageUpdateIntervalSeconds": {
           "type": "number",
-          "default": 1800,
+          "default": 600,
           "minimum": 30,
-          "description": "Codex 额度刷新间隔（秒），默认 30 分钟。"
+          "description": "Codex 正常阶段的额度刷新间隔（秒），默认 10 分钟。插件启动后会先立即刷新，并在前 3 分钟内每 30 秒自动刷新一次（共 6 次）。"
         },
         "codexTaskCompanion.codex.usageDisplayMode": {
           "type": "string",
@@ -191,9 +191,9 @@
         },
         "codexTaskCompanion.claude.usageUpdateIntervalSeconds": {
           "type": "number",
-          "default": 1800,
+          "default": 600,
           "minimum": 30,
-          "description": "Claude 额度刷新间隔（秒），默认 30 分钟。"
+          "description": "Claude 正常阶段的额度刷新间隔（秒），默认 10 分钟。插件启动后会先立即刷新，并在前 3 分钟内每 30 秒自动刷新一次（共 6 次）。"
         },
         "codexTaskCompanion.claude.usageDisplayMode": {
           "type": "string",

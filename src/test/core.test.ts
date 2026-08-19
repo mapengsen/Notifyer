@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_IGNORED_TERMINAL_COMMANDS,
+  DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS,
   formatQuotaStatus,
   formatResetDateTime,
   isClaudeMainTaskCompletion,
   isChildSessionMeta,
   remainingPercent,
   shouldNotifyTerminalCommand,
+  STARTUP_USAGE_REFRESH_COUNT,
+  STARTUP_USAGE_REFRESH_INTERVAL_SECONDS,
+  UsageRefreshCadence,
 } from "../core";
 import {
   inferRemoteHomePath,
@@ -40,6 +44,26 @@ test("formatQuotaStatus keeps the status bar and tooltip summary identical", () 
     formatQuotaStatus(25, "used", undefined, referenceTime)?.statusText,
     "25% used | --",
   );
+});
+
+test("usage refresh cadence retries every 30 seconds six times before the regular interval", () => {
+  const cadence = new UsageRefreshCadence();
+  assert.equal(STARTUP_USAGE_REFRESH_COUNT, 6);
+  assert.equal(STARTUP_USAGE_REFRESH_INTERVAL_SECONDS, 30);
+  assert.equal(DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS, 600);
+
+  for (let remaining = STARTUP_USAGE_REFRESH_COUNT; remaining > 0; remaining -= 1) {
+    assert.equal(cadence.startupRefreshesRemaining, remaining);
+    assert.equal(cadence.getDelaySeconds(DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS), 30);
+    cadence.consumeScheduledRefresh();
+  }
+
+  assert.equal(cadence.startupRefreshesRemaining, 0);
+  assert.equal(
+    cadence.getDelaySeconds(DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS),
+    DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS,
+  );
+  assert.equal(cadence.getDelaySeconds(10), 30);
 });
 
 test("remote environment parsing retains only credential path variables", () => {

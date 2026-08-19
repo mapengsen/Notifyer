@@ -296,6 +296,30 @@ export interface QuotaStatusPresentation {
   statusText: string;
 }
 
+export const STARTUP_USAGE_REFRESH_COUNT = 6;
+export const STARTUP_USAGE_REFRESH_INTERVAL_SECONDS = 30;
+export const DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS = 10 * 60;
+
+export class UsageRefreshCadence {
+  private remainingStartupRefreshes = STARTUP_USAGE_REFRESH_COUNT;
+
+  public get startupRefreshesRemaining(): number {
+    return this.remainingStartupRefreshes;
+  }
+
+  public getDelaySeconds(regularIntervalSeconds: number): number {
+    return this.remainingStartupRefreshes > 0
+      ? STARTUP_USAGE_REFRESH_INTERVAL_SECONDS
+      : Math.max(STARTUP_USAGE_REFRESH_INTERVAL_SECONDS, regularIntervalSeconds);
+  }
+
+  public consumeScheduledRefresh(): void {
+    if (this.remainingStartupRefreshes > 0) {
+      this.remainingStartupRefreshes -= 1;
+    }
+  }
+}
+
 export function formatQuotaStatus(
   percentage: number,
   displayMode: "remaining" | "used",

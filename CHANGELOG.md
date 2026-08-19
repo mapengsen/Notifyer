@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.2.20 - 2026-08-19
+
+### Changed / 变更
+
+- Codex and Claude quotas now refresh immediately at startup, then automatically every 30 seconds for 3 minutes (six scheduled retries) before returning to the configured regular interval, which defaults to 10 minutes.
+- Codex 与 Claude 额度现在会在启动时立即刷新，随后在前 3 分钟内每 30 秒自动刷新一次（共 6 次定时重试），之后恢复配置的常规间隔，默认 10 分钟。
+
 ## 0.2.19 - 2026-08-19
 
 ### Changed / 变更

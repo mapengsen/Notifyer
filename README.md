@@ -10,6 +10,10 @@ When using AI coding tools such as Codex and Claude Code, have you ever run into
 
 What really consumes time is often not coding itself, but repeatedly switching back to the terminal to check progress. This project is designed to solve that problem. It provides a VS Code extension that lets developers hand long-running tasks to the terminal and AI agents while working on something else; when a task finishes, desktop or VS Code notifications let you know promptly.
 
+**GitHub**: [github.com/mapengsen/Notifyer](https://github.com/mapengsen/Notifyer)
+
+**Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
+
 ## What can it do?
 
 ### 1. Monitor AI coding tasks (desktop notifications)
@@ -32,6 +36,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 Notifyer can display Codex and Claude Code usage directly in the VS Code status bar, including remaining percentages, used percentages, and reset times. You can keep track of the current account status without repeatedly opening a webpage or terminal.
 
+At startup, both quota widgets refresh immediately and then retry every 30 seconds for 3 minutes (six scheduled retries). After that startup window, they use the configured regular refresh interval, which defaults to 10 minutes.
+
 Quota credentials are isolated to the environment connected by the current VS Code window:
 
 - A local Windows window reads only `%USERPROFILE%\.codex\auth.json` and `%USERPROFILE%\.claude\.credentials.json` (or the current environment's `CODEX_HOME` / `CLAUDE_CONFIG_DIR`).
@@ -41,6 +47,10 @@ Quota credentials are isolated to the environment connected by the current VS Co
 For unusual remote home layouts, set `codexTaskCompanion.codex.credentialsPath` or `codexTaskCompanion.claude.credentialsPath`; the configured path is still resolved inside the current VS Code environment. Claude's login credential file is `.credentials.json`, not `settings.json`.
 
 # Changelog
+
+## August 19, 2026 (0.2.20)
+
+1. Codex and Claude quotas now refresh immediately at startup, retry every 30 seconds for 3 minutes, and then return to the regular 10-minute default interval.
 
 ## August 19, 2026 (0.2.19)
 
