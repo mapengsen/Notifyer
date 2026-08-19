@@ -53,17 +53,6 @@ export function stripAnsi(value: string): string {
   return value.replace(ANSI_ESCAPE, "");
 }
 
-export function clampPercent(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.max(0, Math.min(100, value));
-}
-
-export function remainingPercent(usedPercent: number): number {
-  return clampPercent(100 - clampPercent(usedPercent));
-}
-
 export function shouldNotifyTerminalCommand(
   commandLine: string,
   ignoredCommands: readonly string[] = DEFAULT_IGNORED_TERMINAL_COMMANDS,
@@ -251,91 +240,6 @@ export function isClaudeMainTaskCompletion(record: Record<string, unknown>): boo
   }
 
   return (message as Record<string, unknown>).stop_reason === "end_turn";
-}
-
-export function formatResetTime(seconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
-  if (safeSeconds < 60) {
-    return `${safeSeconds}s`;
-  }
-  if (safeSeconds < 3600) {
-    return `${Math.floor(safeSeconds / 60)}m`;
-  }
-  if (safeSeconds < 86400) {
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
-  }
-  const days = Math.floor(safeSeconds / 86400);
-  const hours = Math.floor((safeSeconds % 86400) / 3600);
-  return hours ? `${days}d ${hours}h` : `${days}d`;
-}
-
-export function formatResetDateTime(
-  secondsUntilReset: number | undefined,
-  referenceTime = new Date(),
-): string | undefined {
-  if (secondsUntilReset === undefined ||
-      !Number.isFinite(secondsUntilReset) ||
-      !Number.isFinite(referenceTime.getTime())) {
-    return undefined;
-  }
-
-  const resetTime = new Date(
-    referenceTime.getTime() + Math.max(0, secondsUntilReset) * 1000,
-  );
-  const hours = String(resetTime.getHours()).padStart(2, "0");
-  const minutes = String(resetTime.getMinutes()).padStart(2, "0");
-  return `${resetTime.getMonth() + 1}-${resetTime.getDate()} ${hours}:${minutes}`;
-}
-
-export interface QuotaStatusPresentation {
-  percentageText: string;
-  modeLabel: "left" | "used";
-  resetDateTime?: string;
-  statusText: string;
-}
-
-export const STARTUP_USAGE_REFRESH_COUNT = 6;
-export const STARTUP_USAGE_REFRESH_INTERVAL_SECONDS = 30;
-export const DEFAULT_USAGE_REFRESH_INTERVAL_SECONDS = 10 * 60;
-
-export class UsageRefreshCadence {
-  private remainingStartupRefreshes = STARTUP_USAGE_REFRESH_COUNT;
-
-  public get startupRefreshesRemaining(): number {
-    return this.remainingStartupRefreshes;
-  }
-
-  public getDelaySeconds(regularIntervalSeconds: number): number {
-    return this.remainingStartupRefreshes > 0
-      ? STARTUP_USAGE_REFRESH_INTERVAL_SECONDS
-      : Math.max(STARTUP_USAGE_REFRESH_INTERVAL_SECONDS, regularIntervalSeconds);
-  }
-
-  public consumeScheduledRefresh(): void {
-    if (this.remainingStartupRefreshes > 0) {
-      this.remainingStartupRefreshes -= 1;
-    }
-  }
-}
-
-export function formatQuotaStatus(
-  percentage: number,
-  displayMode: "remaining" | "used",
-  secondsUntilReset: number | undefined,
-  referenceTime = new Date(),
-): QuotaStatusPresentation | undefined {
-  if (!Number.isFinite(percentage)) return undefined;
-  const percentageText = `${percentage.toFixed(0)}%`;
-  const modeLabel = displayMode === "remaining" ? "left" : "used";
-  const resetDateTime = formatResetDateTime(secondsUntilReset, referenceTime);
-  return {
-    percentageText,
-    modeLabel,
-    resetDateTime,
-    statusText: `${percentageText} ${modeLabel} | ${resetDateTime ?? "--"}`,
-  };
 }
 
 export function normalizeTimestamp(value: unknown): string | undefined {

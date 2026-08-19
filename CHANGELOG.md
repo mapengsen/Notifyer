@@ -4,6 +4,24 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.0 - 2026-08-19
+
+### Changed / 变更
+
+- Notifyer now focuses exclusively on local desktop and VS Code notifications for Codex, Claude, and terminal tasks.
+- Notifyer 现在专注于 Codex、Claude 与 Terminal 任务的本地桌面和 VS Code 通知。
+- Codex and Claude quota status items moved to the independent `Agent Status` workspace extension, which runs directly in each local or remote workspace environment.
+- Codex 与 Claude 额度状态栏迁移到独立的 `Agent Status` Workspace 扩展，由它直接运行在每个本地或远程工作区环境中。
+- Removed the intermediate hidden Workspace Companion design and all cross-extension quota protocol code.
+- 移除中间的隐藏 Workspace Companion 方案以及全部跨扩展额度协议代码。
+
+## 0.2.21 - 2026-08-19
+
+### Changed / 变更
+
+- Codex and Claude quota items now show an animated refresh indicator while startup, scheduled, or manual usage requests are in progress.
+- Codex 与 Claude 额度部件现在会在启动、定时或手动额度请求进行期间显示旋转的“刷新中”动画。
+
 ## 0.2.20 - 2026-08-19
 
 ### Changed / 变更

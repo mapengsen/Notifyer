@@ -1,8 +1,8 @@
 {
   "name": "codex-task-companion",
   "displayName": "Notifyer",
-  "description": "Desktop notifications for Codex and Claude main-task completion, terminal tasks, and remaining usage quotas in the VS Code status bar.",
-  "version": "0.2.20",
+  "description": "Local desktop notifications for Codex and Claude main-task completion and long-running terminal commands in VS Code.",
+  "version": "0.3.0",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -18,8 +18,7 @@
   ],
   "categories": [
     "AI",
-    "Other",
-    "Visualization"
+    "Other"
   ],
   "keywords": [
     "codex",
@@ -28,8 +27,7 @@
     "openai",
     "notification",
     "python",
-    "terminal",
-    "quota"
+    "terminal"
   ],
   "main": "./out/src/extension.js",
   "activationEvents": [
@@ -37,32 +35,7 @@
     "onTerminalShellIntegration:*"
   ],
   "contributes": {
-    "icons": {
-      "codex-blossom": {
-        "description": "Codex blossom status bar icon",
-        "default": {
-          "fontPath": "resources/codex-icon.woff",
-          "fontCharacter": "\\e900"
-        }
-      }
-    },
     "commands": [
-      {
-        "command": "codexTaskCompanion.refreshUsage",
-        "title": "Notifyer: Refresh Usage"
-      },
-      {
-        "command": "codexTaskCompanion.chooseUsageDisplayMode",
-        "title": "Notifyer: Choose Usage Display"
-      },
-      {
-        "command": "codexTaskCompanion.refreshClaudeUsage",
-        "title": "Notifyer: Refresh Claude Usage"
-      },
-      {
-        "command": "codexTaskCompanion.chooseClaudeUsageDisplayMode",
-        "title": "Notifyer: Choose Claude Usage Display"
-      },
       {
         "command": "codexTaskCompanion.testNotification",
         "title": "Notifyer: Test Desktop Notification"
@@ -127,35 +100,6 @@
           "default": false,
           "description": "首次扫描时是否也通知已经完成的历史主任务。默认关闭，避免启动 VS Code 时产生历史通知。"
         },
-        "codexTaskCompanion.codex.credentialsPath": {
-          "type": "string",
-          "default": "",
-          "description": "当前 VS Code 环境中的 Codex auth.json 路径。留空时，本地 Windows 读取 %USERPROFILE%\\.codex\\auth.json，WSL/SSH/容器读取当前远程用户的 ~/.codex/auth.json。不会跨环境回退。"
-        },
-        "codexTaskCompanion.codex.usageUpdateIntervalSeconds": {
-          "type": "number",
-          "default": 600,
-          "minimum": 30,
-          "description": "Codex 正常阶段的额度刷新间隔（秒），默认 10 分钟。插件启动后会先立即刷新，并在前 3 分钟内每 30 秒自动刷新一次（共 6 次）。"
-        },
-        "codexTaskCompanion.codex.usageDisplayMode": {
-          "type": "string",
-          "enum": [
-            "remaining",
-            "used"
-          ],
-          "enumDescriptions": [
-            "Show the percentage that is still available (default).",
-            "Show the percentage that has already been used."
-          ],
-          "default": "remaining",
-          "description": "选择状态栏显示 Codex 剩余百分比还是已使用百分比，也可以在 Codex 额度悬浮提示中点击“切换显示”选择。"
-        },
-        "codexTaskCompanion.codex.proxyUrl": {
-          "type": "string",
-          "default": "",
-          "description": "访问 Codex 额度接口时使用的 HTTP/HTTPS 代理，例如 http://127.0.0.1:7890。"
-        },
         "codexTaskCompanion.claude.enabled": {
           "type": "boolean",
           "default": true,
@@ -165,11 +109,6 @@
           "type": "string",
           "default": "",
           "description": "Claude Code projects 目录。留空自动查找 ~/.claude/projects。"
-        },
-        "codexTaskCompanion.claude.credentialsPath": {
-          "type": "string",
-          "default": "",
-          "description": "当前 VS Code 环境中的 Claude Code .credentials.json 路径。留空时，本地 Windows 读取 %USERPROFILE%\\.claude\\.credentials.json，WSL/SSH/容器读取当前远程用户的 ~/.claude/.credentials.json。不会跨环境回退。"
         },
         "codexTaskCompanion.claude.sessionPollMs": {
           "type": "number",
@@ -188,30 +127,6 @@
           "type": "boolean",
           "default": false,
           "description": "首次扫描时是否通知已经完成的历史 Claude 主任务。默认关闭。"
-        },
-        "codexTaskCompanion.claude.usageUpdateIntervalSeconds": {
-          "type": "number",
-          "default": 600,
-          "minimum": 30,
-          "description": "Claude 正常阶段的额度刷新间隔（秒），默认 10 分钟。插件启动后会先立即刷新，并在前 3 分钟内每 30 秒自动刷新一次（共 6 次）。"
-        },
-        "codexTaskCompanion.claude.usageDisplayMode": {
-          "type": "string",
-          "enum": [
-            "remaining",
-            "used"
-          ],
-          "enumDescriptions": [
-            "Show the Claude percentage that is still available (default).",
-            "Show the Claude percentage that has already been used."
-          ],
-          "default": "remaining",
-          "description": "选择 Claude 状态栏显示剩余百分比还是已使用百分比，也可以在 Claude 额度悬浮提示中点击“切换显示”选择。"
-        },
-        "codexTaskCompanion.claude.proxyUrl": {
-          "type": "string",
-          "default": "",
-          "description": "访问 Claude 额度接口时使用的 HTTP/HTTPS 代理，例如 http://127.0.0.1:7890。"
         },
         "codexTaskCompanion.terminal.enabled": {
           "type": "boolean",
@@ -299,14 +214,13 @@
     "package": "npm run compile && vsce package"
   },
   "dependencies": {
-    "axios": "^1.7.9",
     "node-notifier": "^10.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "20.14.0",
     "@types/node-notifier": "^8.0.5",
-    "@types/vscode": "^1.93.0",
-    "typescript": "^5.5.4",
-    "vsce": "^2.15.0"
+    "@types/vscode": "1.93.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "^5.5.4"
   }
 }

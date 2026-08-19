@@ -2,7 +2,7 @@
 
 语言：<a href="./README.md">English（默认）</a> | <a href="./README.zh-CN.md">简体中文</a>
 
-Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两者的剩余额度显示和终端命令通知整合在一起。
+Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claude Code 主任务和 Terminal 命令完成通知。
 
 使用 Codex、Claude Code 等 AI 编程工具时，你是否也遇到过这样的场景：
 
@@ -30,24 +30,28 @@ Notifyer 是一个 VS Code 插件，将 Codex 与 Claude Code 任务通知、两
 
 点击桌面通知时，Notifyer 会恢复产生通知的准确 VS Code 窗口。Codex 通知会保留当前编辑器和布局，不再自动打开会话；终端通知会进一步显示原终端。
 
-### 3、随时查看 Codex 和 Claude 使用额度（vscode中显示）
+## Codex 与 Claude 额度显示
 
-<img alt="1786984705972" src="image/README.zh-CN/1786984705972.png" width="393" height="140">
+从 0.3.0 开始，额度显示已经迁移到独立插件 **Agent Status**：
 
-还可以直接在 VS Code 状态栏中显示 Codex、Claude Code 的额度使用情况，包括剩余比例、使用比例以及重置时间。不用频繁打开网页或终端，就能随时掌握当前账号状态。
+- Agent Status 只负责 Codex/Claude 额度状态栏，不包含桌面通知。
+- 普通本地窗口中运行在本机；Remote SSH、WSL 或容器窗口中直接运行在对应工作区环境。
+- 远程凭据读取和额度请求完全在远程服务器内完成，不需要隐藏 Companion，也不会在扩展之间传递令牌。
 
-插件启动时，两个额度部件都会先立即刷新一次，随后在前 3 分钟内每 30 秒自动重试一次（共 6 次定时重试）；启动阶段结束后，恢复配置的常规刷新间隔，默认 10 分钟。
-
-额度凭据会按照当前 VS Code 窗口所连接的环境严格隔离：
-
-- 本地 Windows 窗口只读取 `%USERPROFILE%\.codex\auth.json` 与 `%USERPROFILE%\.claude\.credentials.json`（或当前环境设置的 `CODEX_HOME` / `CLAUDE_CONFIG_DIR`）。
-- WSL、Remote SSH 或容器窗口只读取当前远程用户的 `~/.codex/auth.json` 与 `~/.claude/.credentials.json`。
-- 不再回退到其他本地或远程环境，也不会扫描其他用户的主目录。当前环境没有登录时，对应额度部件会保持隐藏。
-
-如果远程主目录布局特殊，可设置 `codexTaskCompanion.codex.credentialsPath` 或 `codexTaskCompanion.claude.credentialsPath`；自定义路径仍只会在当前 VS Code 环境中解析。Claude 的登录凭据文件是 `.credentials.json`，不是 `settings.json`。
+Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.agent-status)
 
 
 # 更新日志：
+
+## 2026年8月19日（0.3.0）：
+
+1. Notifyer 现在专注于 Codex、Claude 和 Terminal 的本地通知。
+
+2. Codex 与 Claude 额度显示迁移到独立插件 Agent Status；不再使用隐藏的 Workspace Companion。
+
+## 2026年8月19日（0.2.21）：
+
+1. Codex 与 Claude 额度部件现在会在启动、定时或手动刷新请求进行期间显示旋转的“刷新中”动画。
 
 ## 2026年8月19日（0.2.20）：
 

@@ -2,7 +2,7 @@
 
 Language: <a href="https://github.com/mapengsen/Notifyer">English (default)</a> | <a href="https://github.com/mapengsen/Notifyer/blob/main/README.zh-CN.md">简体中文</a>
 
-Notifyer is a VS Code extension that combines Codex and Claude Code task notifications, remaining usage for both providers, and terminal command notifications in one place.
+Notifyer is a focused local-notification extension for Codex and Claude Code main-task completion and terminal commands in VS Code.
 
 When using AI coding tools such as Codex and Claude Code, have you ever run into this situation?
 
@@ -30,23 +30,27 @@ Notifyer monitors commands running in the terminal and sends a desktop notificat
 
 When you click a desktop notification, Notifyer targets the exact VS Code window that produced it. Codex notifications preserve the current editor and layout; terminal notifications additionally reveal the originating terminal.
 
-### 3. View Codex and Claude usage in VS Code
+## Codex and Claude quota display
 
-<img alt="Codex and Claude usage in VS Code" src="image/README.zh-CN/1786984705972.png" width="393" height="140">
+Starting with 0.3.0, quota display has moved to the independent **Agent Status** extension:
 
-Notifyer can display Codex and Claude Code usage directly in the VS Code status bar, including remaining percentages, used percentages, and reset times. You can keep track of the current account status without repeatedly opening a webpage or terminal.
+- Agent Status contains only the Codex/Claude quota status bar and no desktop notifications.
+- It runs locally for normal workspaces and directly in the connected environment for Remote SSH, WSL, and containers.
+- Remote credential reads and quota requests stay entirely on the remote server, with no hidden companion and no token transfer between extensions.
 
-At startup, both quota widgets refresh immediately and then retry every 30 seconds for 3 minutes (six scheduled retries). After that startup window, they use the configured regular refresh interval, which defaults to 10 minutes.
-
-Quota credentials are isolated to the environment connected by the current VS Code window:
-
-- A local Windows window reads only `%USERPROFILE%\.codex\auth.json` and `%USERPROFILE%\.claude\.credentials.json` (or the current environment's `CODEX_HOME` / `CLAUDE_CONFIG_DIR`).
-- A WSL, Remote SSH, or container window reads only the current remote user's `~/.codex/auth.json` and `~/.claude/.credentials.json`.
-- Notifyer never falls back to another local/remote environment and never scans another user's home directory. If the current environment is not authenticated, its quota item stays hidden.
-
-For unusual remote home layouts, set `codexTaskCompanion.codex.credentialsPath` or `codexTaskCompanion.claude.credentialsPath`; the configured path is still resolved inside the current VS Code environment. Claude's login credential file is `.credentials.json`, not `settings.json`.
+Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.agent-status)
 
 # Changelog
+
+## August 19, 2026 (0.3.0)
+
+1. Notifyer now focuses on local Codex, Claude, and terminal notifications.
+
+2. Codex and Claude quota display moved to the independent Agent Status extension; the hidden Workspace Companion design was removed.
+
+## August 19, 2026 (0.2.21)
+
+1. Codex and Claude quota items now display an animated refresh indicator while a startup, scheduled, or manual refresh request is running.
 
 ## August 19, 2026 (0.2.20)
 

@@ -10,3 +10,6 @@ node_modules/.cache/**
 out/**/*.map
 out/src/test/**
 vsix/**
+resources/codex-icon.woff
+image/README.zh-CN/**
+image/1/1786959965417.png
