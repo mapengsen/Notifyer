@@ -14,6 +14,11 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
 
+**All My Plugin Recommendations:**
+
+1. **Notifyer Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
+2. **Agent Status**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+
 ## What can it do?
 
 ### 1. Monitor AI coding tasks (desktop notifications)
@@ -38,9 +43,13 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Status**
 - It runs locally for normal workspaces and directly in the connected environment for Remote SSH, WSL, and containers.
 - Remote credential reads and quota requests stay entirely on the remote server, with no hidden companion and no token transfer between extensions.
 
-Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.agent-status)
+Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## August 19, 2026 (0.3.1)
+
+1. Added “All My Plugin Recommendations” to both READMEs and updated the Agent Status Marketplace link.
 
 ## August 19, 2026 (0.3.0)
 

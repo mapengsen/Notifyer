@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.1 - 2026-08-19
+
+### Changed / 变更
+
+- Added the complete plugin recommendation list to both READMEs and updated the Agent Status Marketplace link.
+- 在中英文 README 中新增完整的插件推荐列表，并更新 Agent Status 插件市场链接。
+
 ## 0.3.0 - 2026-08-19
 
 ### Changed / 变更

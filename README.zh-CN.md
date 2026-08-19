@@ -14,6 +14,11 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
 
+**我的所有插件推荐：**
+
+1. **Notifyer Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
+2. **Agent Status**：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+
 ## 它能做什么？
 
 ### 1、监听 AI 编程任务（桌面通知）
@@ -38,10 +43,14 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 - 普通本地窗口中运行在本机；Remote SSH、WSL 或容器窗口中直接运行在对应工作区环境。
 - 远程凭据读取和额度请求完全在远程服务器内完成，不需要隐藏 Companion，也不会在扩展之间传递令牌。
 
-Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.agent-status)
+Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 
 # 更新日志：
+
+## 2026年8月19日（0.3.1）：
+
+1. 在中英文 README 中新增“我的所有插件推荐”，并更新 Agent Status 插件市场链接。
 
 ## 2026年8月19日（0.3.0）：
 
