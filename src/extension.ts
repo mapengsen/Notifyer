@@ -3,7 +3,7 @@ import { ClaudeSessionMonitor } from "./claudeSessionMonitor";
 import { ClaudeUsageMonitor } from "./claudeUsage";
 import { CodexSessionMonitor } from "./sessionMonitor";
 import { initializeNotifications, notifyDesktop } from "./notify";
-import { PythonTerminalMonitor } from "./terminalMonitor";
+import { TerminalMonitor } from "./terminalMonitor";
 import { UsageMonitor } from "./usage";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const usageMonitor = new UsageMonitor();
   const claudeSessionMonitor = new ClaudeSessionMonitor();
   const claudeUsageMonitor = new ClaudeUsageMonitor();
-  const terminalMonitor = new PythonTerminalMonitor();
+  const terminalMonitor = new TerminalMonitor();
   const diagnostics = vscode.window.createOutputChannel("Notifyer");
 
   context.subscriptions.push(
@@ -53,8 +53,12 @@ export function activate(context: vscode.ExtensionContext): void {
         void sessionMonitor.restart();
       }
       if (event.affectsConfiguration("codexTaskCompanion.codex.usageUpdateIntervalSeconds") ||
-          event.affectsConfiguration("codexTaskCompanion.codex.usageDisplayMode")) {
+          event.affectsConfiguration("codexTaskCompanion.codex.usageDisplayMode") ||
+          event.affectsConfiguration("codexTaskCompanion.codex.credentialsPath")) {
         usageMonitor.reloadConfiguration();
+        if (event.affectsConfiguration("codexTaskCompanion.codex.credentialsPath")) {
+          void usageMonitor.refresh();
+        }
       }
       if (event.affectsConfiguration("codexTaskCompanion.claude.sessionPollMs") ||
           event.affectsConfiguration("codexTaskCompanion.claude.sessionLookbackDays") ||
@@ -64,8 +68,12 @@ export function activate(context: vscode.ExtensionContext): void {
         void claudeSessionMonitor.restart();
       }
       if (event.affectsConfiguration("codexTaskCompanion.claude.usageUpdateIntervalSeconds") ||
-          event.affectsConfiguration("codexTaskCompanion.claude.usageDisplayMode")) {
+          event.affectsConfiguration("codexTaskCompanion.claude.usageDisplayMode") ||
+          event.affectsConfiguration("codexTaskCompanion.claude.credentialsPath")) {
         claudeUsageMonitor.reloadConfiguration();
+        if (event.affectsConfiguration("codexTaskCompanion.claude.credentialsPath")) {
+          void claudeUsageMonitor.refresh();
+        }
       }
     }),
   );

@@ -1,7 +1,53 @@
 const ANSI_ESCAPE = /[\u001b\u009b][[\]()#;?]*(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d\/#&.:=?%@~_]+)*)?\u0007|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 
-export const DEFAULT_PYTHON_COMMAND_PATTERN =
-  String.raw`(?:^|[\s;&|"'(/\\])(?:python(?:\.exe|\d+(?:\.\d+)*)?|py(?:\.exe)?)(?=\s|$)`;
+export const DEFAULT_IGNORED_TERMINAL_COMMANDS = [
+  "alias",
+  "bg",
+  "cat",
+  "cd",
+  "clear",
+  "cls",
+  "command",
+  "date",
+  "df",
+  "dirs",
+  "du",
+  "echo",
+  "dir",
+  "exit",
+  "false",
+  "fg",
+  "free",
+  "head",
+  "help",
+  "history",
+  "id",
+  "jobs",
+  "l",
+  "la",
+  "less",
+  "ll",
+  "ls",
+  "logout",
+  "man",
+  "more",
+  "popd",
+  "printf",
+  "pwd",
+  "pushd",
+  "set",
+  "source",
+  "tail",
+  "true",
+  "type",
+  "unalias",
+  "uname",
+  "unset",
+  "uptime",
+  "whoami",
+  "which",
+  "where",
+] as const;
 
 export function stripAnsi(value: string): string {
   return value.replace(ANSI_ESCAPE, "");
@@ -18,63 +64,152 @@ export function remainingPercent(usedPercent: number): number {
   return clampPercent(100 - clampPercent(usedPercent));
 }
 
-export function compilePattern(pattern: string): RegExp | undefined {
-  try {
-    return new RegExp(pattern, "i");
-  } catch {
-    return undefined;
-  }
-}
-
-export function isPythonCommand(
+export function shouldNotifyTerminalCommand(
   commandLine: string,
-  pattern = DEFAULT_PYTHON_COMMAND_PATTERN,
+  ignoredCommands: readonly string[] = DEFAULT_IGNORED_TERMINAL_COMMANDS,
+  pythonOnly = true,
 ): boolean {
   const cleanCommand = stripAnsi(commandLine).trim();
-  if (pattern === DEFAULT_PYTHON_COMMAND_PATTERN) {
-    return isDefaultPythonCommand(cleanCommand);
-  }
-  const regex = compilePattern(pattern) ?? compilePattern(DEFAULT_PYTHON_COMMAND_PATTERN);
-  if (!regex) {
-    return false;
-  }
-  regex.lastIndex = 0;
-  return regex.test(cleanCommand);
+  if (!cleanCommand) return false;
+
+  const ignored = new Set(
+    ignoredCommands
+      .map((command) => normalizeCommandName(command))
+      .filter((command): command is string => Boolean(command)),
+  );
+  const commandNames = splitCommandSegments(cleanCommand)
+    .map(getCommandName)
+    .filter((command): command is string => Boolean(command));
+  const notificationCandidates = pythonOnly
+    ? commandNames.filter(isPythonCommandName)
+    : commandNames;
+
+  return notificationCandidates.some((command) => !ignored.has(command));
 }
 
-function isDefaultPythonCommand(commandLine: string): boolean {
-  const segments = commandLine.split(/&&|\|\||[;|]/g);
-  for (const segment of segments) {
-    const tokens = segment.trim().split(/\s+/).filter(Boolean);
-    if (!tokens.length) continue;
+function isPythonCommandName(command: string): boolean {
+  return command === "py" || /^pythonw?(?:\d+(?:\.\d+)*)?$/.test(command);
+}
 
-    let index = 0;
-    while (index < tokens.length && isCommandPrefix(tokens[index])) {
+function splitCommandSegments(commandLine: string): string[] {
+  const segments: string[] = [];
+  let segment = "";
+  let quote: "'" | '"' | undefined;
+
+  for (let index = 0; index < commandLine.length; index += 1) {
+    const character = commandLine[index];
+    if ((character === "'" || character === '"') && (!quote || quote === character)) {
+      quote = quote ? undefined : character;
+      segment += character;
+      continue;
+    }
+
+    if (!quote && (character === ";" || character === "|" || character === "&")) {
+      if (segment.trim()) segments.push(segment);
+      segment = "";
+      if (commandLine[index + 1] === character && (character === "|" || character === "&")) {
+        index += 1;
+      }
+      continue;
+    }
+
+    segment += character;
+  }
+
+  if (segment.trim()) segments.push(segment);
+  return segments;
+}
+
+function getCommandName(segment: string): string | undefined {
+  const tokens = tokenizeCommand(segment);
+  let index = 0;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (isEnvironmentAssignment(token) || isRedirection(token)) {
       index += 1;
+      continue;
     }
 
-    if (tokens[index] === "uv" || tokens[index] === "poetry" || tokens[index] === "conda") {
-      if (tokens[index + 1]?.toLowerCase() === "run") index += 2;
+    const normalized = normalizeCommandName(token);
+    if (!normalized) {
+      index += 1;
+      continue;
     }
 
-    if (isPythonExecutable(tokens[index])) return true;
+    if (isCommandPrefix(normalized)) {
+      index += 1;
+      continue;
+    }
+
+    return normalized;
   }
-  return false;
+
+  return undefined;
 }
 
-function isCommandPrefix(token: string): boolean {
-  const clean = token.replace(/^[`"']+|[`"']+$/g, "");
-  return clean === "sudo" || clean === "env" || clean === "command" || clean === "time" || clean === "nohup" || /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(clean);
+function tokenizeCommand(segment: string): string[] {
+  const tokens: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | undefined;
+
+  const pushToken = () => {
+    if (token) tokens.push(token);
+    token = "";
+  };
+
+  for (let index = 0; index < segment.length; index += 1) {
+    const character = segment[index];
+    if ((character === "'" || character === '"') && (!quote || quote === character)) {
+      quote = quote ? undefined : character;
+      continue;
+    }
+
+    if (!quote && /\s/.test(character)) {
+      pushToken();
+      continue;
+    }
+
+    if (quote === '"' && character === "\\" && segment[index + 1]) {
+      token += segment[index + 1];
+      index += 1;
+      continue;
+    }
+
+    token += character;
+  }
+
+  pushToken();
+  return tokens;
 }
 
-function isPythonExecutable(token: string | undefined): boolean {
-  if (!token) return false;
-  const clean = token
+function isEnvironmentAssignment(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(token);
+}
+
+function isRedirection(token: string): boolean {
+  return /^(?:\d*(?:>>?|<<|<>|<&|>&)|[<>])/.test(token);
+}
+
+function isCommandPrefix(command: string): boolean {
+  return command === "sudo" ||
+    command === "env" ||
+    command === "command" ||
+    command === "exec" ||
+    command === "time" ||
+    command === "nohup" ||
+    command === "nice" ||
+    command === "timeout";
+}
+
+function normalizeCommandName(value: string): string | undefined {
+  const clean = value
     .replace(/^[`"'(]+|[`"'),]+$/g, "")
     .split(/[\\/]/)
     .pop()
-    ?.toLowerCase();
-  return clean ? /^(?:python(?:\.exe|\d+(?:\.\d+)*)?|py(?:\.exe)?)$/.test(clean) : false;
+    ?.toLowerCase()
+    .replace(/\.exe$/, "");
+  return clean || undefined;
 }
 
 export function isChildSessionMeta(meta: Record<string, unknown>): boolean {
@@ -134,6 +269,49 @@ export function formatResetTime(seconds: number): string {
   const days = Math.floor(safeSeconds / 86400);
   const hours = Math.floor((safeSeconds % 86400) / 3600);
   return hours ? `${days}d ${hours}h` : `${days}d`;
+}
+
+export function formatResetDateTime(
+  secondsUntilReset: number | undefined,
+  referenceTime = new Date(),
+): string | undefined {
+  if (secondsUntilReset === undefined ||
+      !Number.isFinite(secondsUntilReset) ||
+      !Number.isFinite(referenceTime.getTime())) {
+    return undefined;
+  }
+
+  const resetTime = new Date(
+    referenceTime.getTime() + Math.max(0, secondsUntilReset) * 1000,
+  );
+  const hours = String(resetTime.getHours()).padStart(2, "0");
+  const minutes = String(resetTime.getMinutes()).padStart(2, "0");
+  return `${resetTime.getMonth() + 1}-${resetTime.getDate()} ${hours}:${minutes}`;
+}
+
+export interface QuotaStatusPresentation {
+  percentageText: string;
+  modeLabel: "left" | "used";
+  resetDateTime?: string;
+  statusText: string;
+}
+
+export function formatQuotaStatus(
+  percentage: number,
+  displayMode: "remaining" | "used",
+  secondsUntilReset: number | undefined,
+  referenceTime = new Date(),
+): QuotaStatusPresentation | undefined {
+  if (!Number.isFinite(percentage)) return undefined;
+  const percentageText = `${percentage.toFixed(0)}%`;
+  const modeLabel = displayMode === "remaining" ? "left" : "used";
+  const resetDateTime = formatResetDateTime(secondsUntilReset, referenceTime);
+  return {
+    percentageText,
+    modeLabel,
+    resetDateTime,
+    statusText: `${percentageText} ${modeLabel} | ${resetDateTime ?? "--"}`,
+  };
 }
 
 export function normalizeTimestamp(value: unknown): string | undefined {

@@ -2,7 +2,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { isClaudeMainTaskCompletion, projectNameFromCwd, truncate } from "./core";
-import { notifyDesktop } from "./notify";
+import { focusClaudePage, notifyDesktop } from "./notify";
 
 interface ClaudeTracker {
   uri: vscode.Uri;
@@ -153,7 +153,12 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     const title = `Claude 主任务已完成 · ${projectName}`;
     const message = detail || "任务已完成";
     this.notificationCount += 1;
-    void notifyDesktop(title, message, "info", "claude", { hideTitle: true });
+    void notifyDesktop(title, message, "info", "claude", {
+      hideTitle: true,
+      focus: focusClaudePage,
+      workspacePath: cwd,
+      projectHint: projectName,
+    });
   }
 
   private shouldNotifyInitialScan(completedAt: number | undefined): boolean {
