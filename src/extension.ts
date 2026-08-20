@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { ClaudeSessionMonitor } from "./claudeSessionMonitor";
 import { CodexSessionMonitor } from "./sessionMonitor";
-import { initializeNotifications, notifyDesktop } from "./notify";
+import { getNotificationDiagnostics, initializeNotifications, notifyDesktop } from "./notify";
 import { TerminalMonitor } from "./terminalMonitor";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -29,6 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
         session: sessionMonitor.getDiagnostics(),
         claudeSession: claudeSessionMonitor.getDiagnostics(),
         terminal: terminalMonitor.getDiagnostics(),
+        notifications: getNotificationDiagnostics(),
         remoteName: vscode.env.remoteName ?? "",
       }, null, 2));
       diagnostics.show(true);

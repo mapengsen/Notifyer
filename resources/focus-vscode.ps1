@@ -2,7 +2,8 @@ param(
   [long]$WindowHandle = 0,
   [string]$ProjectHint = "",
   [string]$WorkspacePath = "",
-  [int]$SourceProcessId = 0
+  [int]$SourceProcessId = 0,
+  [switch]$ValidateOnly
 )
 
 Add-Type @"
@@ -27,9 +28,16 @@ public static class NotifyerWindow {
   [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr handle, int command);
   [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr handle);
   [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr handle);
+  [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr handle, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
   [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+  private static readonly IntPtr HwndTopmost = new IntPtr(-1);
+  private static readonly IntPtr HwndNotTopmost = new IntPtr(-2);
+  private const uint SwpNoMove = 0x0002;
+  private const uint SwpNoSize = 0x0001;
+  private const uint SwpShowWindow = 0x0040;
 
   public static NotifyerWindowInfo[] GetVisibleWindows() {
     var windows = new List<NotifyerWindowInfo>();
@@ -72,14 +80,31 @@ public static class NotifyerWindow {
         attachedTarget = AttachThreadInput(currentThread, targetThread, true);
       }
       BringWindowToTop(handle);
-      return SetForegroundWindow(handle);
+      var activated = SetForegroundWindow(handle);
+      if (!activated && GetForegroundWindow() != handle) {
+        var flags = SwpNoMove | SwpNoSize | SwpShowWindow;
+        SetWindowPos(handle, HwndTopmost, 0, 0, 0, 0, flags);
+        SetWindowPos(handle, HwndNotTopmost, 0, 0, 0, 0, flags);
+        BringWindowToTop(handle);
+        activated = SetForegroundWindow(handle);
+      }
+      return activated || GetForegroundWindow() == handle;
     } finally {
       if (attachedTarget) AttachThreadInput(currentThread, targetThread, false);
       if (attachedForeground) AttachThreadInput(currentThread, foregroundThread, false);
     }
   }
+
+  public static bool IsForeground(IntPtr handle) {
+    return handle != IntPtr.Zero && IsWindow(handle) && GetForegroundWindow() == handle;
+  }
 }
 "@
+
+if ($ValidateOnly) {
+  [Console]::Out.WriteLine("activated=false;handle=0;method=validation")
+  return
+}
 
 try {
   function Normalize-Comparable([string]$Value) {
@@ -168,9 +193,43 @@ try {
   if (-not $candidate -and $windows.Count -eq 1) {
     $candidate = $windows[0]
   }
+  $activated = $false
+  $activationMethod = if ($candidate) { "native" } else { "not-found" }
+  $selectedHandle = if ($candidate) { $candidate.Handle.ToInt64() } else { 0 }
+
   if ($candidate) {
-    [NotifyerWindow]::Activate($candidate.Handle) | Out-Null
+    $activated = [NotifyerWindow]::Activate($candidate.Handle)
+
+    if (-not $activated) {
+      try {
+        $shell = New-Object -ComObject WScript.Shell
+        if ($candidate.Id -and $shell.AppActivate([int]$candidate.Id)) {
+          Start-Sleep -Milliseconds 100
+          $activated = [NotifyerWindow]::IsForeground($candidate.Handle)
+          $activationMethod = "app-activate-process"
+        }
+        if (-not $activated -and $candidate.Title -and $shell.AppActivate([string]$candidate.Title)) {
+          Start-Sleep -Milliseconds 100
+          $activated = [NotifyerWindow]::IsForeground($candidate.Handle)
+          $activationMethod = "app-activate-title"
+        }
+      } catch {
+        $activationMethod = "app-activate-error"
+      }
+    }
+
+    if (-not $activated) {
+      Start-Sleep -Milliseconds 150
+      $activated = [NotifyerWindow]::Activate($candidate.Handle)
+      $activationMethod = "native-retry"
+    }
   }
+
+  [Console]::Out.WriteLine(
+    "activated=" + $activated.ToString().ToLowerInvariant() +
+    ";handle=" + $selectedHandle +
+    ";method=" + $activationMethod
+  )
 } catch {
-  # Focusing the window is best effort and should never show a PowerShell error.
+  [Console]::Out.WriteLine("activated=false;handle=0;method=error")
 }

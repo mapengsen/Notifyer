@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.2 - 2026-08-20
+
+### Fixed / 修复
+
+- Desktop notification clicks now recognize additional Windows/SnoreToast activation values and reliably restore the originating VS Code window through native activation retries.
+- 桌面通知点击现在兼容更多 Windows/SnoreToast 激活值，并通过原生窗口激活与重试可靠恢复通知来源 VS Code 窗口。
+- Notifyer diagnostics now include the latest notification callback and window-focus result.
+- Notifyer 诊断信息现在会显示最近一次通知回调和窗口聚焦结果。
+
 ## 0.3.1 - 2026-08-19
 
 ### Changed / 变更

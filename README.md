@@ -47,6 +47,12 @@ Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 
 # Changelog
 
+## August 20, 2026 (0.3.2)
+
+1. Fixed desktop notification clicks that failed to restore the originating VS Code window on Windows by recognizing more activation values and adding native focus fallbacks and retries.
+
+2. Notifyer diagnostics now include the latest notification callback and window-focus result.
+
 ## August 19, 2026 (0.3.1)
 
 1. Added “All My Plugin Recommendations” to both READMEs and updated the Agent Status Marketplace link.

@@ -48,6 +48,12 @@ Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 
 # 更新日志：
 
+## 2026年8月20日（0.3.2）：
+
+1. 修复点击 Windows 桌面通知后无法返回通知来源 VS Code 窗口的问题；兼容更多点击回调值，并增加原生窗口激活回退和重试。
+
+2. Notifyer 诊断信息新增最近一次通知点击回调与窗口聚焦结果。
+
 ## 2026年8月19日（0.3.1）：
 
 1. 在中英文 README 中新增“我的所有插件推荐”，并更新 Agent Status 插件市场链接。

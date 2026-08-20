@@ -49,6 +49,33 @@ export const DEFAULT_IGNORED_TERMINAL_COMMANDS = [
   "where",
 ] as const;
 
+const DESKTOP_NOTIFICATION_NON_ACTIVATIONS = new Set([
+  "close",
+  "closed",
+  "dismiss",
+  "dismissed",
+  "error",
+  "failed",
+  "hidden",
+  "timeout",
+  "timedout",
+]);
+
+/**
+ * Windows notification helpers do not use one stable activation value across
+ * every toast path/version. Treat any reported user action as activation while
+ * explicitly excluding timeout, dismissal, and failure results.
+ */
+export function isDesktopNotificationActivation(...values: readonly unknown[]): boolean {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || DESKTOP_NOTIFICATION_NON_ACTIVATIONS.has(normalized)) continue;
+    return true;
+  }
+  return false;
+}
+
 export function stripAnsi(value: string): string {
   return value.replace(ANSI_ESCAPE, "");
 }

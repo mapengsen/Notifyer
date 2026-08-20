@@ -4,8 +4,25 @@ import {
   DEFAULT_IGNORED_TERMINAL_COMMANDS,
   isClaudeMainTaskCompletion,
   isChildSessionMeta,
+  isDesktopNotificationActivation,
   shouldNotifyTerminalCommand,
 } from "../core";
+
+test("desktop notification activation accepts Windows click variants", () => {
+  assert.equal(isDesktopNotificationActivation("activate"), true);
+  assert.equal(isDesktopNotificationActivation("clicked"), true);
+  assert.equal(isDesktopNotificationActivation(undefined, "activated"), true);
+  assert.equal(isDesktopNotificationActivation("dismissed", "打开 VS Code"), true);
+  assert.equal(isDesktopNotificationActivation(undefined, undefined, "2026-08-20T01:00:00Z"), true);
+});
+
+test("desktop notification activation rejects dismissals and timeouts", () => {
+  assert.equal(isDesktopNotificationActivation(), false);
+  assert.equal(isDesktopNotificationActivation(""), false);
+  assert.equal(isDesktopNotificationActivation("timeout"), false);
+  assert.equal(isDesktopNotificationActivation("timedout", "dismissed"), false);
+  assert.equal(isDesktopNotificationActivation("hidden"), false);
+});
 
 test("terminal command filtering defaults to Python commands", () => {
   assert.equal(shouldNotifyTerminalCommand("python train.py"), true);

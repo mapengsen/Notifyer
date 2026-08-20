@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { isDesktopNotificationActivation } from "./core";
 
 export type NotificationLevel = "info" | "error";
 export type NotificationKind = "codex" | "claude" | "terminal";
@@ -32,6 +33,26 @@ let extensionContext: vscode.ExtensionContext | undefined;
 let windowsNotificationRegistration: Promise<void> | undefined;
 let originatingWindowHandle = "";
 let windowCaptureGeneration = 0;
+const notificationDiagnostics = {
+  clickCount: 0,
+  lastCallbackAt: "",
+  lastResponse: "",
+  lastActivationType: "",
+  lastActivationValue: "",
+  lastClickAt: "",
+  lastFocusAt: "",
+  lastFocusResult: "",
+  lastTargetWindowHandle: "",
+};
+
+export function getNotificationDiagnostics(): Record<string, unknown> {
+  return {
+    ...notificationDiagnostics,
+    openVsCodeOnClick: shouldOpenVsCodeOnClick(),
+    originatingWindowHandle,
+    windowFocused: vscode.window.state.focused,
+  };
+}
 
 export function initializeNotifications(context: vscode.ExtensionContext): void {
   extensionContext = context;
@@ -201,21 +222,32 @@ async function focusVsCodeWindow(
   workspacePath: string,
   projectHint: string,
   windowHandle: string,
-): Promise<void> {
-  if (await focusCurrentWorkbenchWindow()) return;
-  if (process.platform !== "win32" || !extensionContext) return;
+): Promise<string> {
+  const workbenchFocused = await focusCurrentWorkbenchWindow();
+  if (process.platform !== "win32" || !extensionContext) {
+    return workbenchFocused ? "vscode-command" : "unavailable";
+  }
 
   const scriptPath = path.join(extensionContext.extensionPath, "resources", "focus-vscode.ps1");
-  await runPowerShellScript(scriptPath, [
-    "-WindowHandle",
-    windowHandle || "0",
-    "-ProjectHint",
-    projectHint,
-    "-WorkspacePath",
-    workspacePath,
-    "-SourceProcessId",
-    String(process.pid),
-  ], false);
+  const scriptArgs = [
+    "-WindowHandle", windowHandle || "0",
+    "-ProjectHint", projectHint,
+    "-WorkspacePath", workspacePath,
+    "-SourceProcessId", String(process.pid),
+  ];
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const output = await runPowerShellScript(scriptPath, scriptArgs, true);
+    const result = output.trim().split(/\r?\n/).find((line) => line.startsWith("activated="));
+    if (result?.startsWith("activated=true")) {
+      return `windows-native:${result}`;
+    }
+    if (attempt === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 150));
+    }
+  }
+
+  return workbenchFocused ? "vscode-command-only" : "failed";
 }
 
 async function focusCurrentWorkbenchWindow(): Promise<boolean> {
@@ -300,12 +332,17 @@ async function activateNotificationTarget(
   }
 
   try {
-    await focusVsCodeWindow(
+    const focusResult = await focusVsCodeWindow(
       workspacePath,
       projectHint,
       originatingWindowHandle || capturedWindowHandle,
     );
+    notificationDiagnostics.lastFocusAt = new Date().toISOString();
+    notificationDiagnostics.lastFocusResult = focusResult;
+    notificationDiagnostics.lastTargetWindowHandle = originatingWindowHandle || capturedWindowHandle;
   } catch (error) {
+    notificationDiagnostics.lastFocusAt = new Date().toISOString();
+    notificationDiagnostics.lastFocusResult = `error:${String(error)}`;
     console.error("[codex-task-companion] failed to focus originating VS Code window", error);
   }
 }
@@ -347,7 +384,10 @@ export async function notifyDesktop(
     if (handle && vscode.window.state.focused) originatingWindowHandle = handle;
   }
   const targetWindowHandle = originatingWindowHandle;
+  let targetActivationStarted = false;
   const openTarget = () => {
+    if (targetActivationStarted) return;
+    targetActivationStarted = true;
     void activateNotificationTarget(
       options,
       targetWorkspacePath,
@@ -408,14 +448,25 @@ export async function notifyDesktop(
           finish(false);
           return;
         }
-        const normalizedResponse = response?.toLowerCase();
-        const normalizedActivation = typeof metadata?.activationType === "string"
-          ? metadata.activationType.toLowerCase()
-          : undefined;
-        const wasClicked = normalizedResponse === "activate" || normalizedResponse === "click" ||
-          normalizedResponse === "clicked" || normalizedActivation === "activate" ||
-          normalizedActivation === "click" || normalizedActivation === "clicked";
+        notificationDiagnostics.lastCallbackAt = new Date().toISOString();
+        notificationDiagnostics.lastResponse = response ?? "";
+        notificationDiagnostics.lastActivationType = typeof metadata?.activationType === "string"
+          ? metadata.activationType
+          : "";
+        notificationDiagnostics.lastActivationValue = typeof metadata?.activationValue === "string"
+          ? metadata.activationValue
+          : "";
+        const wasClicked = isDesktopNotificationActivation(
+          response,
+          metadata?.activationType,
+          metadata?.activationValue,
+          metadata?.action,
+          metadata?.button,
+          metadata?.activationAt,
+        );
         if (shouldOpenVsCodeOnClick() && wasClicked) {
+          notificationDiagnostics.clickCount += 1;
+          notificationDiagnostics.lastClickAt = new Date().toISOString();
           openTarget();
         }
         finish(true);
