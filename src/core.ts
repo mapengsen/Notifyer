@@ -305,6 +305,27 @@ export function projectNameFromCwd(cwd: string | undefined): string {
   return parts[parts.length - 1] || "workspace";
 }
 
+export function normalizeWorkspacePath(value: string): string {
+  let normalized = value.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+  const wslDrive = normalized.match(/^\/mnt\/([A-Za-z])(?=\/|$)/);
+  if (wslDrive) {
+    normalized = `${wslDrive[1].toLowerCase()}:${normalized.slice(6)}`;
+  }
+  if (/^[A-Za-z]:/.test(normalized)) {
+    normalized = normalized.toLowerCase();
+  }
+  return normalized || "/";
+}
+
+export function workspacePathsOverlap(first: string, second: string): boolean {
+  const left = normalizeWorkspacePath(first);
+  const right = normalizeWorkspacePath(second);
+  if (left === right) return true;
+  if (left === "/") return right.startsWith("/");
+  if (right === "/") return left.startsWith("/");
+  return left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
 export interface TokenUsage {
   inputTokens?: number;
   cachedInputTokens?: number;

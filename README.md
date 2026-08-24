@@ -27,6 +27,8 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 Notifyer monitors the main-task status of AI agents such as Codex and Claude Code. When a task finishes, the extension sends a desktop notification. Child agents and background processes do not constantly interrupt you, keeping notifications useful.
 
+In WSL, Remote SSH, and container windows, Codex monitoring covers both the connected environment and the local UI environment by default. This allows the same VS Code window to detect tasks written by either remote Codex or local Codex Desktop. Set `codexTaskCompanion.codex.sessionsRoot` only when you want to monitor one explicit directory.
+
 ### 2. Monitor terminal commands (desktop notifications)
 
 <img alt="Terminal command desktop notification" src="image/1/1786957707385.png" width="370" height="153">
@@ -52,6 +54,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## August 24, 2026 (0.3.5)
+
+1. Codex monitoring now watches both local and connected WSL, Remote SSH, or container session directories by default, preventing local Codex Desktop completions from being missed in remote VS Code windows.
+2. Windows drive paths and equivalent WSL `/mnt/<drive>` paths now match the same workspace.
+3. Notifyer diagnostics now show all monitored Codex session roots and the latest completion-event outcome.
 
 ## August 24, 2026 (0.3.4)
 

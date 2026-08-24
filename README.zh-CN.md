@@ -27,6 +27,8 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 支持监听 Codex、Claude Code 等 AI Agent 的主任务状态。当任务完成时，插件会自动发送桌面通知；子 Agent 和后台过程不会频繁打扰你，让通知真正有价值。
 
+在 WSL、Remote SSH 和容器窗口中，Codex 监听默认会同时覆盖当前连接环境与本地 UI 环境。因此，同一个 VS Code 窗口既能识别远程 Codex，也能识别本地 Codex Desktop 写入的任务。只有希望仅监听一个指定目录时，才需要设置 `codexTaskCompanion.codex.sessionsRoot`。
+
 ### 2、Terminal命令监听（桌面通知）
 
 <img alt="1786957707385" src="image/1/1786957707385.png" width="370" height="153">
@@ -52,6 +54,12 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年8月24日（0.3.5）：
+
+1. Codex 监听现在默认同时覆盖本地与当前连接的 WSL、Remote SSH 或容器会话目录，避免远程 VS Code 窗口漏掉本地 Codex Desktop 完成事件。
+2. Windows 盘符路径与对应的 WSL `/mnt/<盘符>` 路径现在会识别为同一工作区。
+3. Notifyer 诊断信息现在会显示全部 Codex sessions 监听目录及最近一次完成事件的处理结果。
 
 ## 2026年8月24日（0.3.4）：
 

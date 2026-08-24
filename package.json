@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Local desktop notifications for Codex and Claude main-task completion and long-running terminal commands in VS Code.",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -80,7 +80,7 @@
         "codexTaskCompanion.codex.sessionsRoot": {
           "type": "string",
           "default": "",
-          "description": "Codex sessions 目录。留空自动查找 ~/.codex/sessions；远程环境自动查找失败时可填写远程路径。"
+          "description": "Codex sessions 目录。留空时同时监听本地环境与当前 WSL、Remote SSH 或容器环境的 ~/.codex/sessions；填写后仅监听指定目录。"
         },
         "codexTaskCompanion.codex.sessionPollMs": {
           "type": "number",

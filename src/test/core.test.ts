@@ -6,7 +6,9 @@ import {
   isChildSessionMeta,
   isDesktopNotificationActivation,
   mergeChildSessionClassification,
+  normalizeWorkspacePath,
   shouldNotifyTerminalCommand,
+  workspacePathsOverlap,
 } from "../core";
 
 test("desktop notification activation accepts Windows click variants", () => {
@@ -95,6 +97,16 @@ test("subagent classification survives inherited root metadata", () => {
   assert.equal(mergeChildSessionClassification(detectedChild, inheritedRootMeta), true);
   assert.equal(detectedRoot, false);
   assert.equal(mergeChildSessionClassification(detectedRoot, childMeta), true);
+});
+
+test("workspace matching treats Windows and WSL mount paths as equivalent", () => {
+  assert.equal(normalizeWorkspacePath("F:\\others\\vscode-Plugin\\Notifyer"), "f:/others/vscode-plugin/notifyer");
+  assert.equal(normalizeWorkspacePath("/mnt/f/others/vscode-Plugin/Notifyer"), "f:/others/vscode-plugin/notifyer");
+  assert.equal(workspacePathsOverlap(
+    "F:\\others\\vscode-Plugin\\Notifyer",
+    "/mnt/f/others/vscode-plugin",
+  ), true);
+  assert.equal(workspacePathsOverlap("/srv/project-a", "/srv/project-b"), false);
 });
 
 test("Claude main-turn completion detection ignores sidechains", () => {

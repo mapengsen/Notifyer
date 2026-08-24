@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.5 - 2026-08-24
+
+### Fixed / 修复
+
+- Codex completion monitoring now watches both the local UI environment and the connected WSL, Remote SSH, or container environment by default, preventing local Codex Desktop tasks from being missed in remote VS Code windows.
+- Codex 完成监听现在默认同时覆盖本地 UI 环境和当前连接的 WSL、Remote SSH 或容器环境，避免远程 VS Code 窗口漏掉本地 Codex Desktop 任务。
+- Windows drive paths and equivalent WSL `/mnt/<drive>` paths now match the same workspace.
+- Windows 盘符路径与对应的 WSL `/mnt/<盘符>` 路径现在会识别为同一工作区。
+- Diagnostics now list every monitored Codex sessions root and the outcome of the latest completion event.
+- 诊断信息现在会列出全部 Codex sessions 监听目录及最近一次完成事件的处理结果。
+
 ## 0.3.4 - 2026-08-24
 
 ### Changed / 变更

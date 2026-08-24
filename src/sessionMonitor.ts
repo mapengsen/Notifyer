@@ -8,6 +8,7 @@ import {
   normalizeTokenUsage,
   projectNameFromCwd,
   truncate,
+  workspacePathsOverlap,
   type TokenUsage,
 } from "./core";
 import { notifyDesktop } from "./notify";
@@ -52,11 +53,15 @@ export class CodexSessionMonitor implements vscode.Disposable {
   private readonly processedEventIds = new Set<string>();
   private pollTimer: NodeJS.Timeout | undefined;
   private pollInFlight = false;
-  private sessionsRootUri: vscode.Uri | undefined;
+  private sessionsRootUris: vscode.Uri[] = [];
   private notificationStartMs = Date.now();
   private lastError = "";
   private pollCount = 0;
   private notificationCount = 0;
+  private skippedChildCount = 0;
+  private skippedWorkspaceCount = 0;
+  private skippedInitialScanCount = 0;
+  private lastCompletionEvent: Record<string, unknown> | undefined;
 
   public async start(): Promise<void> {
     await this.restart();
@@ -67,8 +72,12 @@ export class CodexSessionMonitor implements vscode.Disposable {
     this.pollTimer = undefined;
     this.trackers.clear();
     this.processedEventIds.clear();
-    this.sessionsRootUri = undefined;
+    this.sessionsRootUris = [];
     this.notificationStartMs = Date.now();
+    this.skippedChildCount = 0;
+    this.skippedWorkspaceCount = 0;
+    this.skippedInitialScanCount = 0;
+    this.lastCompletionEvent = undefined;
     await this.poll(false);
     this.pollTimer = setInterval(() => void this.poll(true), this.getPollMs());
   }
@@ -76,11 +85,16 @@ export class CodexSessionMonitor implements vscode.Disposable {
   public getDiagnostics(): Record<string, unknown> {
     return {
       running: Boolean(this.pollTimer),
-      sessionsRoot: this.sessionsRootUri?.toString() ?? "",
+      sessionsRoot: this.sessionsRootUris[0]?.toString() ?? "",
+      sessionsRoots: this.sessionsRootUris.map((root) => root.toString()),
       trackedFileCount: this.trackers.size,
       processedEventCount: this.processedEventIds.size,
       pollCount: this.pollCount,
       notificationCount: this.notificationCount,
+      skippedChildCount: this.skippedChildCount,
+      skippedWorkspaceCount: this.skippedWorkspaceCount,
+      skippedInitialScanCount: this.skippedInitialScanCount,
+      lastCompletionEvent: this.lastCompletionEvent,
       lastError: this.lastError,
     };
   }
@@ -94,10 +108,20 @@ export class CodexSessionMonitor implements vscode.Disposable {
     this.pollInFlight = true;
     this.pollCount += 1;
     try {
-      this.sessionsRootUri ??= await resolveSessionsRootUri();
-      if (!this.sessionsRootUri) return;
-      const files = await collectRecentSessionFiles(this.sessionsRootUri, this.getLookbackDays());
-      for (const file of files) await this.refreshFile(file, emitNotifications);
+      if (!this.sessionsRootUris.length) {
+        this.sessionsRootUris = await resolveSessionsRootUris();
+      }
+      if (!this.sessionsRootUris.length) return;
+      const seenFiles = new Set<string>();
+      for (const root of this.sessionsRootUris) {
+        const files = await collectRecentSessionFiles(root, this.getLookbackDays());
+        for (const file of files) {
+          const key = file.toString();
+          if (seenFiles.has(key)) continue;
+          seenFiles.add(key);
+          await this.refreshFile(file, emitNotifications);
+        }
+      }
       this.lastError = "";
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : String(error);
@@ -216,19 +240,49 @@ export class CodexSessionMonitor implements vscode.Disposable {
       }
       return;
     }
-    if (payloadType !== "task_complete" || !turnId || tracker.isChild) return;
+    if (payloadType !== "task_complete" || !turnId) return;
 
     const sessionId = tracker.sessionId ?? inferSessionId(tracker.uri);
     const eventId = `${sessionId}:${turnId}`;
+    const completedAt = normalizeTimestamp(payload.completed_at) ?? normalizeTimestamp(record.timestamp);
+    if (tracker.isChild) {
+      this.skippedChildCount += 1;
+      this.lastCompletionEvent = {
+        eventId,
+        outcome: "skipped-child-session",
+        completedAt: completedAt ?? "",
+        sessionFile: tracker.uri.toString(),
+      };
+      return;
+    }
     if (this.processedEventIds.has(eventId)) return;
     this.processedEventIds.add(eventId);
 
     const cwd = turn?.cwd ?? tracker.cwd;
-    if (!matchesCurrentWorkspace(cwd)) return;
+    if (!matchesCurrentWorkspace(cwd)) {
+      this.skippedWorkspaceCount += 1;
+      this.lastCompletionEvent = {
+        eventId,
+        outcome: "skipped-workspace-mismatch",
+        completedAt: completedAt ?? "",
+        cwd: cwd ?? "",
+        sessionFile: tracker.uri.toString(),
+      };
+      return;
+    }
 
-    const completedAt = normalizeTimestamp(payload.completed_at) ?? normalizeTimestamp(record.timestamp);
     const shouldNotify = emitNotifications || this.shouldNotifyInitialScan(completedAt);
-    if (!shouldNotify) return;
+    if (!shouldNotify) {
+      this.skippedInitialScanCount += 1;
+      this.lastCompletionEvent = {
+        eventId,
+        outcome: "skipped-initial-scan",
+        completedAt: completedAt ?? "",
+        cwd: cwd ?? "",
+        sessionFile: tracker.uri.toString(),
+      };
+      return;
+    }
 
     const level = turn?.errorMessage ? "error" : "info";
     const projectName = projectNameFromCwd(cwd);
@@ -246,10 +300,23 @@ export class CodexSessionMonitor implements vscode.Disposable {
       cwd,
     };
     this.notificationCount += 1;
+    this.lastCompletionEvent = {
+      eventId,
+      outcome: "notification-requested",
+      completedAt: completedAt ?? "",
+      cwd: cwd ?? "",
+      sessionFile: tracker.uri.toString(),
+    };
     void notifyDesktop(completion.title, completion.message, completion.level, "codex", {
       hideTitle: true,
       workspacePath: completion.cwd,
       projectHint: completion.projectName,
+    }).then((delivered) => {
+      if (this.lastCompletionEvent?.eventId !== eventId) return;
+      this.lastCompletionEvent = {
+        ...this.lastCompletionEvent,
+        outcome: delivered ? "notified" : "notification-failed-or-suppressed",
+      };
     });
   }
 
@@ -281,19 +348,23 @@ export class CodexSessionMonitor implements vscode.Disposable {
   }
 }
 
-async function resolveSessionsRootUri(): Promise<vscode.Uri | undefined> {
+async function resolveSessionsRootUris(): Promise<vscode.Uri[]> {
   const config = vscode.workspace.getConfiguration("codexTaskCompanion.codex");
   const configured = config.get<string>("sessionsRoot", "").trim();
   const folder = vscode.workspace.workspaceFolders?.[0];
-  if (configured) return resolveConfiguredRoot(configured, folder?.uri);
+  if (configured) return [await resolveConfiguredRoot(configured, folder?.uri)];
 
+  const roots: vscode.Uri[] = [];
   if (folder?.uri.scheme !== "file" && folder?.uri) {
     const remoteHome = await findRemoteHome(folder.uri);
-    return remoteHome ? vscode.Uri.joinPath(remoteHome, ".codex", "sessions") : undefined;
+    if (remoteHome) roots.push(vscode.Uri.joinPath(remoteHome, ".codex", "sessions"));
   }
 
   const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
-  return vscode.Uri.file(path.join(codexHome, "sessions"));
+  roots.push(vscode.Uri.file(path.join(codexHome, "sessions")));
+  const unique = new Map<string, vscode.Uri>();
+  for (const root of roots) unique.set(root.toString(), root);
+  return [...unique.values()];
 }
 
 async function resolveConfiguredRoot(value: string, reference?: vscode.Uri): Promise<vscode.Uri> {
@@ -369,17 +440,10 @@ async function collectJsonlFiles(folder: vscode.Uri, files: vscode.Uri[]): Promi
 function matchesCurrentWorkspace(cwd: string | undefined): boolean {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (!folders.length || !cwd) return true;
-  const candidate = normalizePath(cwd);
   return folders.some((folder) => {
-    const root = normalizePath(folder.uri.scheme === "file" ? folder.uri.fsPath : folder.uri.path);
-    return root === candidate || candidate.startsWith(`${root}/`) || root.startsWith(`${candidate}/`);
+    const root = folder.uri.scheme === "file" ? folder.uri.fsPath : folder.uri.path;
+    return workspacePathsOverlap(root, cwd);
   });
-}
-
-function normalizePath(value: string): string {
-  let normalized = value.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
-  if (/^[A-Za-z]:/.test(normalized)) normalized = normalized.toLowerCase();
-  return normalized || "/";
 }
 
 function inferSessionId(uri: vscode.Uri): string {
