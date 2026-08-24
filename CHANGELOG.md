@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.3 - 2026-08-24
+
+### Fixed / 修复
+
+- Subagent identity is now preserved when inherited parent-session metadata appears later in the same Codex JSONL file, preventing notifications before the main task completes.
+- 当 Codex 子代理 JSONL 后续出现继承的主会话元数据时，现在会保留子代理身份，避免主任务完成前提前发送通知。
+- Session identity is reset when a tracked Codex JSONL file is truncated and rebuilt.
+- Codex JSONL 文件截断重建时会同步重置会话身份。
+
 ## 0.3.2 - 2026-08-20
 
 ### Fixed / 修复

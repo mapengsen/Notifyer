@@ -35,6 +35,12 @@ Notifyer monitors commands running in the terminal and sends a desktop notificat
 
 When you click a desktop notification, Notifyer targets the exact VS Code window that produced it. Codex notifications preserve the current editor and layout; terminal notifications additionally reveal the originating terminal.
 
+# If an issue occurs:
+
+Make sure your Windows notifications are enabled and "Do Not Disturb" is turned off.
+
+![1787558032299](image/README/1787558032299.png)
+
 ## Codex and Claude quota display
 
 Starting with 0.3.0, quota display has moved to the independent **Agent Status** extension:
@@ -47,10 +53,14 @@ Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 
 # Changelog
 
+## August 24, 2026 (0.3.3)
+
+1. Fixed premature notifications during multi-agent Codex tasks by preserving subagent identity when inherited parent-session metadata appears later in the same JSONL file.
+2. Codex session identity now resets correctly when a tracked JSONL file is truncated and rebuilt.
+
 ## August 20, 2026 (0.3.2)
 
 1. Fixed desktop notification clicks that failed to restore the originating VS Code window on Windows by recognizing more activation values and adding native focus fallbacks and retries.
-
 2. Notifyer diagnostics now include the latest notification callback and window-focus result.
 
 ## August 19, 2026 (0.3.1)
@@ -60,7 +70,6 @@ Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 ## August 19, 2026 (0.3.0)
 
 1. Notifyer now focuses on local Codex, Claude, and terminal notifications.
-
 2. Codex and Claude quota display moved to the independent Agent Status extension; the hidden Workspace Companion design was removed.
 
 ## August 19, 2026 (0.2.21)
@@ -82,9 +91,7 @@ Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 ## August 19, 2026 (0.2.17)
 
 1. Terminal desktop notifications now monitor only Python commands by default, including full Python executable paths inside Conda environments. The previous behavior can be restored by turning off Python-only mode in settings.
-
 2. Codex and Claude quota status items now use a compact single-line format such as `5% left | 8-20 reset` or `5% used | 8-20 reset`, with reset dates shown as the local month and day.
-
 3. Codex and Claude quota credentials are now isolated by the current VS Code environment. Local Windows, WSL, Remote SSH, and containers use only their own login files, with no cross-environment fallback or other-user directory scanning.
 
 ## August 18, 2026 (0.2.16)
@@ -94,11 +101,9 @@ Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 ## August 18, 2026
 
 1. Fixed an issue where clicking a notification with multiple VS Code windows open would only activate the last-used window.
-
 2. Terminal notifications now restore the originating terminal in the correct VS Code window.
 
 ## August 18, 2026, 10:10:55
 
 1. Added desktop notifications for all terminal commands except common Linux commands such as `ls`, `ll`, and `pwd`.
-
 2. Clicking a desktop notification now prioritizes the VS Code window that generated it; terminal notifications additionally reveal the corresponding terminal.

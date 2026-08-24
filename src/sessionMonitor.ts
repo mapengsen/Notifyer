@@ -3,7 +3,7 @@ import * as os from "os";
 import * as vscode from "vscode";
 import {
   buildTokenDelta,
-  isChildSessionMeta,
+  mergeChildSessionClassification,
   normalizeTimestamp,
   normalizeTokenUsage,
   projectNameFromCwd,
@@ -137,6 +137,9 @@ export class CodexSessionMonitor implements vscode.Disposable {
     if (text.length < tracker.offset) {
       tracker.offset = 0;
       tracker.remainder = "";
+      tracker.sessionId = undefined;
+      tracker.cwd = undefined;
+      tracker.isChild = false;
       tracker.turns.clear();
       tracker.activeTurnId = undefined;
       tracker.latestTokenUsage = undefined;
@@ -167,7 +170,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
       const meta = asRecord(record.payload);
       tracker.sessionId = stringValue(meta.session_id) ?? stringValue(meta.id);
       tracker.cwd = stringValue(meta.cwd) ?? tracker.cwd;
-      tracker.isChild = isChildSessionMeta(meta);
+      tracker.isChild = mergeChildSessionClassification(tracker.isChild, meta);
       return;
     }
 

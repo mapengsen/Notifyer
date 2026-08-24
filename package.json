@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Local desktop notifications for Codex and Claude main-task completion and long-running terminal commands in VS Code.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",

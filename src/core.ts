@@ -256,6 +256,13 @@ export function isChildSessionMeta(meta: Record<string, unknown>): boolean {
   return false;
 }
 
+export function mergeChildSessionClassification(
+  currentIsChild: boolean,
+  meta: Record<string, unknown>,
+): boolean {
+  return currentIsChild || isChildSessionMeta(meta);
+}
+
 export function isClaudeMainTaskCompletion(record: Record<string, unknown>): boolean {
   if (record.type !== "assistant" || record.isSidechain === true) {
     return false;

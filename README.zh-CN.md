@@ -35,6 +35,12 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 点击桌面通知时，Notifyer 会恢复产生通知的准确 VS Code 窗口。Codex 通知会保留当前编辑器和布局，不再自动打开会话；终端通知会进一步显示原终端。
 
+# 如果出现问题：
+
+确保你的Windows的通知是打开的，请勿打扰是关闭的
+
+![1787557948450](image/README.zh-CN/1787557948450.png)
+
 ## Codex 与 Claude 额度显示
 
 从 0.3.0 开始，额度显示已经迁移到独立插件 **Agent Status**：
@@ -45,13 +51,16 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
-
 # 更新日志：
+
+## 2026年8月24日（0.3.3）：
+
+1. 修复 Codex 多代理任务中，继承的主会话元数据覆盖子代理身份并导致主任务完成前提前弹窗的问题。
+2. Codex 会话 JSONL 文件截断重建时，现在会正确重置会话身份。
 
 ## 2026年8月20日（0.3.2）：
 
 1. 修复点击 Windows 桌面通知后无法返回通知来源 VS Code 窗口的问题；兼容更多点击回调值，并增加原生窗口激活回退和重试。
-
 2. Notifyer 诊断信息新增最近一次通知点击回调与窗口聚焦结果。
 
 ## 2026年8月19日（0.3.1）：
@@ -61,7 +70,6 @@ Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 ## 2026年8月19日（0.3.0）：
 
 1. Notifyer 现在专注于 Codex、Claude 和 Terminal 的本地通知。
-
 2. Codex 与 Claude 额度显示迁移到独立插件 Agent Status；不再使用隐藏的 Workspace Companion。
 
 ## 2026年8月19日（0.2.21）：
@@ -83,9 +91,7 @@ Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 ## 2026年8月19日（0.2.17）：
 
 1. Terminal 桌面通知默认仅监听 Python 命令，同时支持 Conda 环境中的完整 Python 可执行文件路径；可在设置中关闭仅 Python 模式以恢复原行为。
-
 2. Codex 与 Claude 额度状态栏改为紧凑单行格式，例如 `5% left | 8-20 reset` 或 `5% used | 8-20 reset`，重置日期以本地月份和日期显示。
-
 3. Codex 与 Claude 额度凭据改为按当前 VS Code 环境严格隔离。本地 Windows、WSL、Remote SSH 与容器只读取各自的登录文件，不再跨环境回退或扫描其他用户目录。
 
 ## 2026年8月18日（0.2.16）：
@@ -95,11 +101,9 @@ Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 ## 2026年8月18日：
 
 1. 修复多 VS Code 窗口时，点击通知只进入最后活跃窗口的问题。
-
 2. 终端通知会在准确窗口中恢复原终端。
 
 ## 2026年8月18日10:10:55：
 
 1. 增加所有的terminal命令都可以桌面通知，除了常见的Linux命令，例如ls,ll,pwd...
-
 2. 点击桌面通知时，优先定位到产生通知的 VS Code 窗口；终端通知会进一步显示对应的终端。

@@ -5,6 +5,7 @@ import {
   isClaudeMainTaskCompletion,
   isChildSessionMeta,
   isDesktopNotificationActivation,
+  mergeChildSessionClassification,
   shouldNotifyTerminalCommand,
 } from "../core";
 
@@ -72,6 +73,28 @@ test("subagent session metadata is filtered", () => {
   assert.equal(isChildSessionMeta({ thread_source: "subagent" }), true);
   assert.equal(isChildSessionMeta({ source: { subagent: { thread_spawn: {} } } }), true);
   assert.equal(isChildSessionMeta({ source: "cli", cwd: "/tmp" }), false);
+});
+
+test("subagent classification survives inherited root metadata", () => {
+  const childMeta = {
+    id: "child-session",
+    session_id: "root-session",
+    thread_source: "subagent",
+    parent_thread_id: "root-session",
+    source: { subagent: { thread_spawn: {} } },
+  };
+  const inheritedRootMeta = {
+    id: "root-session",
+    thread_source: "user",
+    source: "vscode",
+  };
+
+  const detectedChild = mergeChildSessionClassification(false, childMeta);
+  const detectedRoot = mergeChildSessionClassification(false, inheritedRootMeta);
+  assert.equal(detectedChild, true);
+  assert.equal(mergeChildSessionClassification(detectedChild, inheritedRootMeta), true);
+  assert.equal(detectedRoot, false);
+  assert.equal(mergeChildSessionClassification(detectedRoot, childMeta), true);
 });
 
 test("Claude main-turn completion detection ignores sidechains", () => {
