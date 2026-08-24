@@ -17,7 +17,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 **All My Plugin Recommendations:**
 
 1. **Notifyer Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
-2. **Agent Status**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+2. **Agent Center**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 ## What can it do?
 
@@ -43,15 +43,19 @@ Make sure your Windows notifications are enabled and "Do Not Disturb" is turned 
 
 ## Codex and Claude quota display
 
-Starting with 0.3.0, quota display has moved to the independent **Agent Status** extension:
+Starting with 0.3.0, quota display has moved to the independent **Agent Center** extension:
 
-- Agent Status contains only the Codex/Claude quota status bar and no desktop notifications.
+- Agent Center contains only the Codex/Claude quota status bar and no desktop notifications.
 - It runs locally for normal workspaces and directly in the connected environment for Remote SSH, WSL, and containers.
 - Remote credential reads and quota requests stay entirely on the remote server, with no hidden companion and no token transfer between extensions.
 
-Agent Status: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## August 24, 2026 (0.3.4)
+
+1. Updated current README references and plugin recommendations to use the new Agent Center display name while retaining the existing Marketplace extension ID.
 
 ## August 24, 2026 (0.3.3)
 

@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.4 - 2026-08-24
+
+### Changed / 变更
+
+- Updated current README references and plugin recommendations to use the new `Agent Center` display name while retaining the existing Marketplace extension ID.
+- README 当前说明及插件推荐现统一使用新的 `Agent Center` 展示名称，同时保留原有 Marketplace 扩展 ID。
+
 ## 0.3.3 - 2026-08-24
 
 ### Fixed / 修复

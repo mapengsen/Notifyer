@@ -17,7 +17,7 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 **我的所有插件推荐：**
 
 1. **Notifyer Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
-2. **Agent Status**：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+2. **Agent Center**：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 ## 它能做什么？
 
@@ -43,15 +43,19 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 ## Codex 与 Claude 额度显示
 
-从 0.3.0 开始，额度显示已经迁移到独立插件 **Agent Status**：
+从 0.3.0 开始，额度显示已经迁移到独立插件 **Agent Center**：
 
-- Agent Status 只负责 Codex/Claude 额度状态栏，不包含桌面通知。
+- Agent Center 只负责 Codex/Claude 额度状态栏，不包含桌面通知。
 - 普通本地窗口中运行在本机；Remote SSH、WSL 或容器窗口中直接运行在对应工作区环境。
 - 远程凭据读取和额度请求完全在远程服务器内完成，不需要隐藏 Companion，也不会在扩展之间传递令牌。
 
-Agent Status：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
+Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年8月24日（0.3.4）：
+
+1. README 当前说明及插件推荐统一使用新的 Agent Center 展示名称，同时保留原有 Marketplace 扩展 ID。
 
 ## 2026年8月24日（0.3.3）：
 
