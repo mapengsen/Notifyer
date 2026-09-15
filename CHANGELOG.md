@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.3.6 - 2026-09-15
+
+### Fixed / 修复
+
+- Initial Codex and Claude scans now establish a strictly silent baseline by default instead of using completion timestamps, preventing historical notifications caused by clock differences between local and remote environments.
+- Codex 与 Claude 首次扫描现在默认严格静默建立基线，不再依据完成时间戳判断，从而避免本机与远程环境时钟差异导致历史通知集中弹出。
+- Completion events are claimed atomically in shared extension storage, so the same task can produce only one notification across multiple VS Code windows.
+- 完成事件现在会在插件全局存储中进行原子认领，因此多个 VS Code 窗口同时运行时，同一个任务只会通知一次。
+- Session files discovered after the initial baseline remain eligible for normal new-task notifications.
+- 首次基线建立后新发现的会话文件仍会正常触发新任务通知。
+
 ## 0.3.5 - 2026-08-24
 
 ### Fixed / 修复

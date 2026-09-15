@@ -1,7 +1,12 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { isClaudeMainTaskCompletion, projectNameFromCwd, truncate } from "./core";
+import {
+  isClaudeMainTaskCompletion,
+  projectNameFromCwd,
+  shouldNotifySessionCompletion,
+  truncate,
+} from "./core";
 import { focusClaudePage, notifyDesktop } from "./notify";
 
 interface ClaudeTracker {
@@ -21,7 +26,6 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
   private pollTimer: NodeJS.Timeout | undefined;
   private pollInFlight = false;
   private projectsRootUri: vscode.Uri | undefined;
-  private notificationStartMs = Date.now();
   private lastError = "";
   private pollCount = 0;
   private notificationCount = 0;
@@ -36,7 +40,6 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     this.trackers.clear();
     this.processedEventIds.clear();
     this.projectsRootUri = undefined;
-    this.notificationStartMs = Date.now();
     await this.poll(false);
     this.pollTimer = setInterval(() => void this.poll(true), this.getPollMs());
   }
@@ -144,28 +147,31 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     const cwd = tracker.cwd;
     if (!matchesCurrentWorkspace(cwd)) return;
 
-    const completedAt = parseTimestamp(record.timestamp);
-    const shouldNotify = emitNotifications || this.shouldNotifyInitialScan(completedAt);
+    const shouldNotify = shouldNotifySessionCompletion(
+      emitNotifications,
+      this.shouldNotifyInitialScan(),
+    );
     if (!shouldNotify) return;
 
     const projectName = projectNameFromCwd(cwd);
     const detail = summarizeClaudeAssistant(record);
     const title = `Claude 主任务已完成 · ${projectName}`;
     const message = detail || "任务已完成";
-    this.notificationCount += 1;
     void notifyDesktop(title, message, "info", "claude", {
       hideTitle: true,
       focus: focusClaudePage,
       workspacePath: cwd,
       projectHint: projectName,
+      deduplicationKey: `claude:${eventId}`,
+    }).then((result) => {
+      if (result.delivered) this.notificationCount += 1;
     });
   }
 
-  private shouldNotifyInitialScan(completedAt: number | undefined): boolean {
-    const enabled = vscode.workspace
+  private shouldNotifyInitialScan(): boolean {
+    return vscode.workspace
       .getConfiguration("codexTaskCompanion.claude")
       .get<boolean>("notifyInitialScan", false);
-    return enabled || (completedAt !== undefined && completedAt >= this.notificationStartMs);
   }
 
   private isEnabled(): boolean {
@@ -298,15 +304,6 @@ function normalizePath(value: string): string {
 function inferSessionId(uri: vscode.Uri): string {
   const match = uri.path.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\.jsonl)?$/i);
   return match?.[1] ?? path.basename(uri.path, path.extname(uri.path));
-}
-
-function parseTimestamp(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value > 100000000000 ? value : value * 1000;
-  }
-  if (typeof value !== "string" || !value.trim()) return undefined;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

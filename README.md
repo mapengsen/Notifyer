@@ -55,6 +55,12 @@ Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 
 # Changelog
 
+## September 15, 2026 (0.3.6)
+
+1. Initial Codex and Claude session scans now establish a strictly silent baseline by default, preventing old completions from being replayed when local and remote clocks differ.
+2. Completion events are now claimed atomically in shared extension storage, so opening multiple VS Code windows produces only one notification for the same task.
+3. Session files discovered after the initial baseline remain eligible for normal new-task notifications.
+
 ## August 24, 2026 (0.3.5)
 
 1. Codex monitoring now watches both local and connected WSL, Remote SSH, or container session directories by default, preventing local Codex Desktop completions from being missed in remote VS Code windows.

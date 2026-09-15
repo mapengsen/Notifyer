@@ -55,6 +55,12 @@ Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 
 # 更新日志：
 
+## 2026年9月15日（0.3.6）：
+
+1. Codex 与 Claude 首次会话扫描现在默认严格静默建立基线，不再因本机与远程服务器时间不一致而补发历史完成通知。
+2. 完成事件现在会在插件全局存储中进行原子认领；同时打开多个 VS Code 窗口时，同一个任务只会弹出一次通知。
+3. 首次基线建立后才发现的新会话文件仍会正常触发新任务通知。
+
 ## 2026年8月24日（0.3.5）：
 
 1. Codex 监听现在默认同时覆盖本地与当前连接的 WSL、Remote SSH 或容器会话目录，避免远程 VS Code 窗口漏掉本地 Codex Desktop 完成事件。

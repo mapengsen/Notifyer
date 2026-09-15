@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import test from "node:test";
 import {
   DEFAULT_IGNORED_TERMINAL_COMMANDS,
@@ -8,8 +11,29 @@ import {
   mergeChildSessionClassification,
   normalizeWorkspacePath,
   shouldNotifyTerminalCommand,
+  shouldNotifySessionCompletion,
   workspacePathsOverlap,
 } from "../core";
+import { NotificationClaimStore } from "../notificationClaimStore";
+
+test("initial session scan is silent unless explicitly enabled", () => {
+  assert.equal(shouldNotifySessionCompletion(false, false), false);
+  assert.equal(shouldNotifySessionCompletion(false, true), true);
+  assert.equal(shouldNotifySessionCompletion(true, false), true);
+});
+
+test("notification claims are shared atomically across extension hosts", () => {
+  const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), "notifyer-claims-"));
+  try {
+    const firstWindow = new NotificationClaimStore(rootPath);
+    const secondWindow = new NotificationClaimStore(rootPath);
+    assert.equal(firstWindow.claim("codex:session:turn"), true);
+    assert.equal(secondWindow.claim("codex:session:turn"), false);
+    assert.equal(secondWindow.claim("codex:session:another-turn"), true);
+  } finally {
+    fs.rmSync(rootPath, { recursive: true, force: true });
+  }
+});
 
 test("desktop notification activation accepts Windows click variants", () => {
   assert.equal(isDesktopNotificationActivation("activate"), true);

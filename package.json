@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Local desktop notifications for Codex and Claude main-task completion and long-running terminal commands in VS Code.",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -98,7 +98,7 @@
         "codexTaskCompanion.codex.notifyInitialScan": {
           "type": "boolean",
           "default": false,
-          "description": "首次扫描时是否也通知已经完成的历史主任务。默认关闭，避免启动 VS Code 时产生历史通知。"
+          "description": "首次扫描时是否也通知已经完成的历史主任务。默认关闭时会严格静默建立基线，不根据本机或远程时间戳补发历史通知。"
         },
         "codexTaskCompanion.claude.enabled": {
           "type": "boolean",
@@ -126,7 +126,7 @@
         "codexTaskCompanion.claude.notifyInitialScan": {
           "type": "boolean",
           "default": false,
-          "description": "首次扫描时是否通知已经完成的历史 Claude 主任务。默认关闭。"
+          "description": "首次扫描时是否通知已经完成的历史 Claude 主任务。默认关闭时会严格静默建立基线。"
         },
         "codexTaskCompanion.terminal.enabled": {
           "type": "boolean",

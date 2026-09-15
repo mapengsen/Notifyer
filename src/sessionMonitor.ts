@@ -7,6 +7,7 @@ import {
   normalizeTimestamp,
   normalizeTokenUsage,
   projectNameFromCwd,
+  shouldNotifySessionCompletion,
   truncate,
   workspacePathsOverlap,
   type TokenUsage,
@@ -54,7 +55,6 @@ export class CodexSessionMonitor implements vscode.Disposable {
   private pollTimer: NodeJS.Timeout | undefined;
   private pollInFlight = false;
   private sessionsRootUris: vscode.Uri[] = [];
-  private notificationStartMs = Date.now();
   private lastError = "";
   private pollCount = 0;
   private notificationCount = 0;
@@ -73,7 +73,6 @@ export class CodexSessionMonitor implements vscode.Disposable {
     this.trackers.clear();
     this.processedEventIds.clear();
     this.sessionsRootUris = [];
-    this.notificationStartMs = Date.now();
     this.skippedChildCount = 0;
     this.skippedWorkspaceCount = 0;
     this.skippedInitialScanCount = 0;
@@ -145,7 +144,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
         turns: new Map(),
       };
       this.trackers.set(key, tracker);
-      await this.processWholeFile(tracker, false);
+      await this.processWholeFile(tracker, emitNotifications);
       return;
     }
 
@@ -271,7 +270,10 @@ export class CodexSessionMonitor implements vscode.Disposable {
       return;
     }
 
-    const shouldNotify = emitNotifications || this.shouldNotifyInitialScan(completedAt);
+    const shouldNotify = shouldNotifySessionCompletion(
+      emitNotifications,
+      this.shouldNotifyInitialScan(),
+    );
     if (!shouldNotify) {
       this.skippedInitialScanCount += 1;
       this.lastCompletionEvent = {
@@ -299,7 +301,6 @@ export class CodexSessionMonitor implements vscode.Disposable {
       projectName,
       cwd,
     };
-    this.notificationCount += 1;
     this.lastCompletionEvent = {
       eventId,
       outcome: "notification-requested",
@@ -311,11 +312,13 @@ export class CodexSessionMonitor implements vscode.Disposable {
       hideTitle: true,
       workspacePath: completion.cwd,
       projectHint: completion.projectName,
-    }).then((delivered) => {
+      deduplicationKey: `codex:${completion.id}`,
+    }).then((result) => {
+      if (result.delivered) this.notificationCount += 1;
       if (this.lastCompletionEvent?.eventId !== eventId) return;
       this.lastCompletionEvent = {
         ...this.lastCompletionEvent,
-        outcome: delivered ? "notified" : "notification-failed-or-suppressed",
+        outcome: result.outcome,
       };
     });
   }
@@ -328,11 +331,10 @@ export class CodexSessionMonitor implements vscode.Disposable {
     return created;
   }
 
-  private shouldNotifyInitialScan(completedAt: string | undefined): boolean {
-    const enabled = vscode.workspace.getConfiguration("codexTaskCompanion.codex").get<boolean>("notifyInitialScan", false);
-    if (enabled) return true;
-    const timestamp = completedAt ? Date.parse(completedAt) : NaN;
-    return Number.isFinite(timestamp) && timestamp >= this.notificationStartMs;
+  private shouldNotifyInitialScan(): boolean {
+    return vscode.workspace
+      .getConfiguration("codexTaskCompanion.codex")
+      .get<boolean>("notifyInitialScan", false);
   }
 
   private isEnabled(): boolean {

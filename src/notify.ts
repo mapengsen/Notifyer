@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { isDesktopNotificationActivation } from "./core";
+import { NotificationClaimStore } from "./notificationClaimStore";
 
 export type NotificationLevel = "info" | "error";
 export type NotificationKind = "codex" | "claude" | "terminal";
@@ -15,6 +16,21 @@ export interface DesktopNotificationOptions {
   workspacePath?: string;
   /** Optional project name used as a fallback for window matching. */
   projectHint?: string;
+  /** Stable event identity used to suppress duplicates across VS Code windows. */
+  deduplicationKey?: string;
+}
+
+export type NotificationDeliveryOutcome =
+  | "notified"
+  | "vscode"
+  | "vscode-fallback"
+  | "suppressed-focused"
+  | "suppressed-duplicate"
+  | "failed";
+
+export interface NotificationDeliveryResult {
+  delivered: boolean;
+  outcome: NotificationDeliveryOutcome;
 }
 
 const NOTIFYER_APP_ID = "Notifyer";
@@ -31,6 +47,7 @@ interface NativeNotifier {
 
 let extensionContext: vscode.ExtensionContext | undefined;
 let windowsNotificationRegistration: Promise<void> | undefined;
+let notificationClaimStore: NotificationClaimStore | undefined;
 let originatingWindowHandle = "";
 let windowCaptureGeneration = 0;
 const notificationDiagnostics = {
@@ -43,6 +60,8 @@ const notificationDiagnostics = {
   lastFocusAt: "",
   lastFocusResult: "",
   lastTargetWindowHandle: "",
+  duplicateSuppressedCount: 0,
+  lastDeliveryOutcome: "",
 };
 
 export function getNotificationDiagnostics(): Record<string, unknown> {
@@ -56,6 +75,14 @@ export function getNotificationDiagnostics(): Record<string, unknown> {
 
 export function initializeNotifications(context: vscode.ExtensionContext): void {
   extensionContext = context;
+  notificationClaimStore = new NotificationClaimStore(
+    path.join(context.globalStorageUri.fsPath, "notification-claims"),
+  );
+  try {
+    notificationClaimStore.pruneExpiredClaims();
+  } catch (error) {
+    console.error("[codex-task-companion] failed to prune notification claims", error);
+  }
   windowsNotificationRegistration = registerWindowsNotificationApp(context);
   if (process.platform !== "win32") return;
 
@@ -371,9 +398,21 @@ export async function notifyDesktop(
   level: NotificationLevel = "info",
   kind: NotificationKind = "codex",
   options: DesktopNotificationOptions = {},
-): Promise<boolean> {
+): Promise<NotificationDeliveryResult> {
   if (shouldSuppressWhenFocused()) {
-    return false;
+    return deliveryResult(false, "suppressed-focused");
+  }
+
+  if (options.deduplicationKey && notificationClaimStore) {
+    try {
+      if (!notificationClaimStore.claim(options.deduplicationKey)) {
+        notificationDiagnostics.duplicateSuppressedCount += 1;
+        return deliveryResult(false, "suppressed-duplicate");
+      }
+    } catch (error) {
+      // Fail open so a storage problem cannot disable notifications entirely.
+      console.error("[codex-task-companion] failed to claim notification event", error);
+    }
   }
 
   const mode = getMode();
@@ -400,7 +439,7 @@ export async function notifyDesktop(
   }
 
   if (mode === "VS Code") {
-    return true;
+    return deliveryResult(true, "vscode");
   }
 
   const iconPath = getNotificationIcon(kind);
@@ -410,19 +449,20 @@ export async function notifyDesktop(
     if (mode === "Desktop") {
       showInEditor(title, message, level, openTarget);
     }
-    return false;
+    return deliveryResult(true, "vscode-fallback");
   }
 
   if (process.platform === "win32") {
     await windowsNotificationRegistration;
   }
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<NotificationDeliveryResult>((resolve) => {
     let settled = false;
-    const finish = (success: boolean) => {
+    const finish = (result: NotificationDeliveryResult) => {
       if (settled) return;
       settled = true;
-      resolve(success);
+      notificationDiagnostics.lastDeliveryOutcome = result.outcome;
+      resolve(result);
     };
     try {
       // On Windows node-notifier uses SnoreToast. Passing `icon` maps to the
@@ -445,7 +485,7 @@ export async function notifyDesktop(
           if (mode === "Desktop") {
             showInEditor(title, message, level, openTarget);
           }
-          finish(false);
+          finish({ delivered: true, outcome: "vscode-fallback" });
           return;
         }
         notificationDiagnostics.lastCallbackAt = new Date().toISOString();
@@ -469,15 +509,23 @@ export async function notifyDesktop(
           notificationDiagnostics.lastClickAt = new Date().toISOString();
           openTarget();
         }
-        finish(true);
+        finish({ delivered: true, outcome: "notified" });
       });
-      setTimeout(() => finish(true), 1000);
+      setTimeout(() => finish({ delivered: true, outcome: "notified" }), 1000);
     } catch (error) {
       console.error("[codex-task-companion] desktop notification threw", error);
       if (mode === "Desktop") {
         showInEditor(title, message, level, openTarget);
       }
-      finish(false);
+      finish({ delivered: true, outcome: "vscode-fallback" });
     }
   });
+}
+
+function deliveryResult(
+  delivered: boolean,
+  outcome: NotificationDeliveryOutcome,
+): NotificationDeliveryResult {
+  notificationDiagnostics.lastDeliveryOutcome = outcome;
+  return { delivered, outcome };
 }

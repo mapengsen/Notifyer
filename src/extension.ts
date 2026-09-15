@@ -38,7 +38,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.affectsConfiguration("codexTaskCompanion.codex.sessionPollMs") ||
           event.affectsConfiguration("codexTaskCompanion.codex.sessionLookbackDays") ||
           event.affectsConfiguration("codexTaskCompanion.codex.sessionsRoot") ||
-          event.affectsConfiguration("codexTaskCompanion.codex.enabled")) {
+          event.affectsConfiguration("codexTaskCompanion.codex.enabled") ||
+          event.affectsConfiguration("codexTaskCompanion.codex.notifyInitialScan")) {
         void sessionMonitor.restart();
       }
       if (event.affectsConfiguration("codexTaskCompanion.claude.sessionPollMs") ||

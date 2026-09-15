@@ -334,6 +334,18 @@ export interface TokenUsage {
   totalTokens?: number;
 }
 
+/**
+ * Initial session scans establish a baseline and must remain silent unless the
+ * user explicitly opted into historical notifications. Event timestamps are
+ * intentionally ignored because local and remote clocks may disagree.
+ */
+export function shouldNotifySessionCompletion(
+  emitNotifications: boolean,
+  notifyInitialScan: boolean,
+): boolean {
+  return emitNotifications || notifyInitialScan;
+}
+
 export function normalizeTokenUsage(raw: unknown): TokenUsage | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return undefined;
