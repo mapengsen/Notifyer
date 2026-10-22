@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",

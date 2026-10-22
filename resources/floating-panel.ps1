@@ -77,6 +77,8 @@ try {
   $script:lastResponse = 0
   $script:lastLiveAt = Now-Ms
   $script:cards = @()
+  $script:runningCount = 0
+  $script:unreadCount = 0
   $controls = @{}
   foreach ($name in @('Header','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionText','SessionScroll','SessionList','Footer')) {
     $controls[$name] = $script:window.FindName($name)
@@ -129,7 +131,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.7'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.8'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -226,6 +228,9 @@ try {
       if (-not $row) { continue }
       $status = [string]$row.status
       if ($Stale -and $status -eq 'running') { $status = 'unknown' }
+      # Older extension hosts may still publish replayed history as running.
+      # Require live activity before presenting an active spinner.
+      if ($status -eq 'running' -and $row.live -eq $false) { continue }
       # Filter the current turn's duration, not its last log activity. Keep the
       # stored session so a later completion still becomes an unread result.
       if ($status -eq 'running' -and $Now - [double]$row.startedAt -gt 500 * 60000) { continue }
@@ -299,6 +304,8 @@ try {
     }
     $controls.RunningCount.Text = '运行中  ' + $running
     $controls.UnreadCount.Text = '待查看  ' + $pending
+    $script:runningCount = $running
+    $script:unreadCount = $pending
     $controls.ConnectionText.Text = if ($stale) { 'VS Code 已关闭或连接中断' } else { '所有已连接窗口 · 仅运行中与待查看' }
     if ($signature -eq $script:lastModel) { return }
     $script:lastModel = $signature
@@ -408,6 +415,8 @@ try {
     Save-Preferences
     if ($script:cards.Count -ne 2) { throw 'Panel must show only running and unread fixture rows.' }
     if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
+    $historyOnly = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = (Now-Ms) }
+    if (@(Get-VisibleRows @($historyOnly) (Now-Ms) $false).Count -ne 0) { throw 'Baseline history from older extension hosts must not show an active spinner.' }
     $dot = $script:cards[0].Child.Children[0].Children[0]
     $spinner = $script:cards[1].Child.Children[0].Children[0]
     if ($dot -isnot [Windows.Shapes.Ellipse] -or $dot.Fill.ToString() -ne '#FF1676D2') { throw 'Unread results must have a blue dot.' }
@@ -474,7 +483,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.7') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.8') { throw 'Panel heartbeat failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

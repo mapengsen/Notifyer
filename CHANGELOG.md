@@ -4,6 +4,19 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.8 - 2026-10-22
+
+### Fixed / 修复
+
+- Historical scans now reconcile each file's final state atomically, with local observation order separate from event timestamps. Older completion timestamps can replace cached running states without replaying earlier turns or losing persisted unread results.
+- 历史扫描只提交每个文件的最终状态，分离本机观测顺序与日志时间；修复旧“运行中”缓存覆盖实际完成结果，并保留已有待查看状态。
+- History alone no longer proves that a conversation is running; live activity must resume before it appears. Native filtering also hides baseline-only rows published by older extension hosts.
+- 仅有历史记录不再判断为正在运行，收到新的实时活动后才显示；原生窗口也会隐藏旧扩展进程上报的纯历史运行记录。
+- Claude API errors, interruption markers and truncated/terminal response stop reasons leave the running list without generating a successful completion. Real resumed activity can re-enter it. Late Codex errors cannot revive an aborted turn.
+- Claude API 连接错误、中断标记及截断等停止状态退出运行列表，不生成成功完成记录；恢复真实活动后可重新显示。Codex 中止后迟到的错误不会让会话重新运行。
+- Retained the 500-minute display limit and quiet timeout as fallback rules, and added regression coverage for history reconciliation and interrupted streams.
+- 保留 500 分钟显示上限与日志静默兜底，并补充历史状态校正及断流回归验证。
+
 ## 0.4.7 - 2026-10-22
 
 ### Fixed / 修复

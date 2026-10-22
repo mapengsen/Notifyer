@@ -11,6 +11,8 @@ export interface SessionActivity {
   status: SessionStatus;
   startedAt: number;
   updatedAt: number;
+  /** Local observation order, separate from historical/remote event time. */
+  observedAt?: number;
   /** Baseline history must never create new unread results. */
   live: boolean;
 }
@@ -35,6 +37,7 @@ export class SessionActivityTracker {
   private current: SessionActivity | undefined;
   private turnError = false;
   private contextTurnId = "";
+  private observedAt = 0;
 
   public constructor(
     private readonly provider: SessionActivity["provider"],
@@ -43,7 +46,7 @@ export class SessionActivityTracker {
   ) {}
 
   public reset(): void {
-    if (this.current) this.emit({ ...this.current, status: "unknown" });
+    if (this.current) this.emit({ ...this.current, status: "unknown", observedAt: Date.now() });
     this.sessionId = "";
     this.cwd = "";
     this.child = false;
@@ -53,6 +56,7 @@ export class SessionActivityTracker {
   }
 
   public consume(input: Record<string, unknown>, live: boolean, now = Date.now()): void {
+    this.observedAt = now;
     const payload = record(input.payload);
     if (this.provider === "codex" && input.type === "session_meta") {
       this.sessionId = string(payload.id) || string(payload.session_id) || this.sessionId;
@@ -98,8 +102,10 @@ export class SessionActivityTracker {
       } else if (type === "turn_aborted" || type === "task_aborted") {
         this.update("unknown", at, live);
       } else if (type === "error") {
-        this.turnError = true;
-        this.update("running", at, live);
+        if (this.current?.status === "running") {
+          this.turnError = true;
+          this.update("running", at, live);
+        }
       } else if (this.current && ["task_started", "user_message", "agent_message", "token_count"].includes(type)) {
         this.update(this.current.status, at, live);
       }
@@ -108,8 +114,18 @@ export class SessionActivityTracker {
 
     const content = record(input.message).content;
     const toolResult = Array.isArray(content) && content.some((item) => record(item).type === "tool_result");
+    const title = contentText(input.message).replace(/\s+/g, " ").slice(0, 100);
+    const stopReason = string(record(input.message).stop_reason);
+    if ((input.type === "system" && input.subtype === "api_error")
+      || (input.type === "assistant" && input.isApiErrorMessage === true)
+      || (input.type === "user" && /^\[Request interrupted by user(?: for tool use)?\]/.test(title))
+      || (input.type === "assistant" && ["max_tokens", "stop_sequence", "refusal"].includes(stopReason))) {
+      // A disconnected/retrying or interrupted turn is not an active response
+      // or a successful completion. Real subsequent activity can resume it.
+      this.update("unknown", at, live);
+      return;
+    }
     if (input.type === "user" && !toolResult) {
-      const title = contentText(input.message).replace(/\s+/g, " ").slice(0, 100);
       // Ignore bookkeeping records with no human prompt.
       if (!title) return;
       this.begin(string(input.uuid) || string(input.timestamp) || String(at), at, live);
@@ -125,6 +141,14 @@ export class SessionActivityTracker {
     }
   }
 
+  public flushBaseline(now = Date.now()): void {
+    if (!this.current) return;
+    // Publish only the final replayed state, preserving saved unread results
+    // rather than overwriting them with every earlier turn in the file.
+    this.emit({ ...this.current, status: this.current.status === "running" ? "unknown" : this.current.status,
+      live: false, observedAt: now });
+  }
+
   private classifyChild(child: boolean): void {
     this.child ||= child;
     if (this.child && this.current) {
@@ -138,12 +162,12 @@ export class SessionActivityTracker {
     this.current = {
       key: `${this.provider}:${this.source}:${this.sessionId || this.source}`,
       provider: this.provider, sessionId: this.sessionId, turnId, cwd: this.cwd,
-      title: "", status: "running", startedAt: at, updatedAt: at, live,
+      title: "", status: "running", startedAt: at, updatedAt: at, observedAt: this.observedAt, live,
     };
   }
   private update(status: SessionStatus, at: number, live: boolean): void {
     if (!this.current) return;
-    this.current = { ...this.current, cwd: this.cwd, status, updatedAt: at, live };
-    this.emit({ ...this.current });
+    this.current = { ...this.current, cwd: this.cwd, status, updatedAt: at, observedAt: this.observedAt, live };
+    if (live) this.emit({ ...this.current });
   }
 }

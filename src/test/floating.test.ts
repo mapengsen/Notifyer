@@ -102,6 +102,8 @@ test("aborted turns are unknown instead of completed or running", () => {
   tracker.consume(event("task_started"), true, now);
   tracker.consume(event("turn_aborted"), true, now + 1);
   assert.equal(updates.at(-1)?.status, "unknown");
+  tracker.consume(event("error", { message: "Cancelled stream" }), true, now + 2);
+  assert.equal(updates.at(-1)?.status, "unknown");
 });
 
 test("a Codex error does not finish a task before its completion event", () => {
@@ -148,6 +150,128 @@ test("Claude subagents never enter the panel", () => {
     message: { content: "subtask" } }, true, now);
   tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now);
   assert.equal(count, 0);
+});
+
+test("historical unfinished turns stay hidden until actual live activity resumes", () => {
+  const updates: SessionActivity[] = [];
+  const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+  tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human",
+    timestamp: new Date(now - 60000).toISOString(), message: { content: "Continue the work" } }, false, now);
+  assert.equal(updates.length, 0);
+  tracker.flushBaseline(now);
+  assert.equal(updates.at(-1)?.status, "unknown");
+  assert.equal(updates.at(-1)?.live, false);
+  tracker.consume({ type: "assistant", message: { stop_reason: "tool_use" } }, true, now + 1);
+  assert.equal(updates.at(-1)?.status, "running");
+  assert.equal(updates.at(-1)?.live, true);
+});
+
+test("baseline replay reconciles an old completion over a more recent cached running observation", () => {
+  const cached = applyActivity(undefined, activity({ provider: "claude", turnId: "human", updatedAt: now - 1000 }));
+  let stored = cached;
+  const tracker = new SessionActivityTracker("claude", "local", (item) => { stored = applyActivity(stored, item); });
+  tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human",
+    timestamp: new Date(now - 5 * 3600000).toISOString(), message: { content: "Resume" } }, false, now);
+  tracker.consume({ type: "assistant", timestamp: new Date(now - 4 * 3600000).toISOString(),
+    message: { stop_reason: "end_turn" } }, false, now);
+  tracker.flushBaseline(now);
+  assert.equal(stored.status, "completed");
+  assert.equal(stored.unread, false);
+  assert.equal(stored.updatedAt, now - 4 * 3600000);
+  assert.equal(stored.observedAt, now);
+});
+
+test("replaying a whole historical file preserves an existing unread final result without emitting earlier turns", () => {
+  let stored = applyActivity(undefined, activity({ provider: "claude", turnId: "latest", status: "completed", updatedAt: now - 1 }));
+  let emitted = 0;
+  const tracker = new SessionActivityTracker("claude", "local", (item) => { emitted++; stored = applyActivity(stored, item); });
+  for (const turn of ["earlier", "latest"]) {
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: turn,
+      timestamp: new Date(now - 60000).toISOString(), message: { content: "Task" } }, false, now);
+    tracker.consume({ type: "assistant", timestamp: new Date(now - 30000).toISOString(),
+      message: { stop_reason: "end_turn" } }, false, now);
+  }
+  tracker.flushBaseline(now);
+  assert.equal(emitted, 1);
+  assert.equal(stored.turnId, "latest");
+  assert.equal(stored.unread, true);
+});
+
+test("a reconciled final state wins across windows without making old log activity fresh", () => {
+  const cached = applyActivity(undefined, activity({ updatedAt: now - 1000 }));
+  const reconciled = applyActivity(undefined, activity({ status: "completed", live: false,
+    updatedAt: now - 4 * 3600000, observedAt: now }));
+  const rows = aggregateSessions([snapshot("old", cached), snapshot("new", reconciled)], () => false, now);
+  assert.equal(rows[0].status, "completed");
+  assert.equal(rows[0].unread, false);
+  const quiet = { ...reconciled, status: "running" as const, live: true };
+  assert.equal(aggregateSessions([snapshot("new", quiet)], () => false, now)[0].status, "unknown");
+});
+
+test("legacy baseline-only running rows never count as live work even below 500 minutes", () => {
+  const item = applyActivity(undefined, activity({ live: false, startedAt: now - 1000, updatedAt: now }));
+  assert.equal(aggregateSessions([snapshot("a", item)], () => false, now)[0].status, "unknown");
+});
+
+test("Claude interruption markers stop the current turn rather than starting a phantom user turn", () => {
+  for (const marker of ["[Request interrupted by user]", "[Request interrupted by user for tool use]"]) {
+    const updates: SessionActivity[] = [];
+    const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human", message: { content: "Real task" } }, true, now);
+    tracker.consume({ type: "user", uuid: "marker", message: { content: marker } }, true, now + 1);
+    assert.equal(updates.at(-1)?.status, "unknown");
+    assert.equal(updates.at(-1)?.turnId, "human");
+    assert.equal(updates.at(-1)?.title, "Real task");
+    assert.equal(applyActivity(undefined, updates.at(-1)!).unread, false);
+  }
+});
+
+test("Claude API disconnects hide running work, bookkeeping cannot revive it, and actual assistant activity can", () => {
+  const updates: SessionActivity[] = [];
+  const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+  tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human", message: { content: "Train" } }, true, now);
+  tracker.consume({ type: "system", subtype: "api_error", retryAttempt: 1, maxRetries: 10, error: { message: "Connection error." } }, true, now + 1);
+  assert.equal(updates.at(-1)?.status, "unknown");
+  tracker.consume({ type: "progress", data: { type: "hook_progress" } }, true, now + 2);
+  tracker.consume({ type: "last-prompt", sessionId: "session" }, true, now + 3);
+  assert.equal(updates.at(-1)?.status, "unknown");
+  tracker.consume({ type: "assistant", message: { stop_reason: "tool_use" } }, true, now + 4);
+  assert.equal(updates.at(-1)?.status, "running");
+  tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 5);
+  assert.equal(updates.at(-1)?.status, "completed");
+});
+
+test("Claude synthetic API errors and truncated responses do not create unread completions", () => {
+  for (const terminal of [
+    { type: "assistant", isApiErrorMessage: true, message: { stop_reason: "end_turn" } },
+    { type: "assistant", message: { stop_reason: "max_tokens" } },
+  ]) {
+    const updates: SessionActivity[] = [];
+    const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human", message: { content: "Task" } }, true, now);
+    tracker.consume(terminal, true, now + 1);
+    assert.equal(updates.at(-1)?.status, "unknown");
+    assert.equal(applyActivity(undefined, updates.at(-1)!).unread, false);
+  }
+});
+
+test("resume wording in a genuine prompt is not a reason to hide an active turn", () => {
+  const updates: SessionActivity[] = [];
+  const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+  tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human",
+    message: { content: "Your response above was cut off mid-stream. Resume directly." } }, true, now);
+  assert.equal(updates.at(-1)?.status, "running");
+});
+
+test("Codex historical replay publishes only its final state and resumes on live logs", () => {
+  const { tracker, updates } = codexTracker();
+  tracker.consume(event("task_started"), false, now);
+  tracker.consume(event("user_message", { message: "Task" }), false, now);
+  assert.equal(updates.length, 0);
+  tracker.flushBaseline(now);
+  assert.equal(updates.at(-1)?.status, "unknown");
+  tracker.consume(event("agent_message"), true, now + 1);
+  assert.equal(updates.at(-1)?.status, "running");
 });
 
 test("duplicate observations show one row with all matching windows", () => {

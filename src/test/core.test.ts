@@ -133,7 +133,10 @@ test("workspace matching treats Windows and WSL mount paths as equivalent", () =
   assert.equal(workspacePathsOverlap("/srv/project-a", "/srv/project-b"), false);
 });
 
-test("Claude main-turn completion detection ignores sidechains", () => {
+test("Claude main-turn completion detection ignores sidechains and synthetic API errors", () => {
+  assert.equal(isClaudeMainTaskCompletion({
+    type: "assistant", isApiErrorMessage: true, message: { stop_reason: "end_turn" },
+  }), false);
   assert.equal(isClaudeMainTaskCompletion({
     type: "assistant",
     isSidechain: false,

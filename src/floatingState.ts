@@ -60,7 +60,7 @@ export function acknowledgementKey(session: SessionActivity): string {
   return digest(`${session.key}:${session.turnId}`);
 }
 export function applyActivity(previous: StoredSession | undefined, incoming: SessionActivity): StoredSession {
-  if (previous && incoming.updatedAt < previous.updatedAt) return previous;
+  if (previous && (incoming.observedAt ?? incoming.updatedAt) < (previous.observedAt ?? previous.updatedAt)) return previous;
   const sameTurn = previous?.turnId === incoming.turnId;
   return {
     ...incoming,
@@ -96,7 +96,9 @@ export function aggregateSessions(
       else {
         old.owners.push(owner);
         old.online ||= online;
-        if (session.updatedAt > old.session.updatedAt || (session.updatedAt === old.session.updatedAt && session.unread)) {
+        const order = session.observedAt ?? session.updatedAt;
+        const oldOrder = old.session.observedAt ?? old.session.updatedAt;
+        if (order > oldOrder || (order === oldOrder && session.unread)) {
           old.session = session;
         }
       }
@@ -111,7 +113,7 @@ export function aggregateSessions(
       && session.updatedAt < now - 24 * 60 * 60_000) continue;
     rows.push({
       ...session, unread, acknowledgement, owners: owners.sort((a, b) => Number(b.online) - Number(a.online)),
-      status: session.status === "running" && (!online || now - session.updatedAt > quietAfterMs) ? "unknown" : session.status,
+      status: session.status === "running" && (!session.live || !online || now - session.updatedAt > quietAfterMs) ? "unknown" : session.status,
     });
   }
   const priority = (item: PanelRow): number => item.unread ? 0 : item.status === "running" ? 1 : item.status === "unknown" ? 2 : 3;

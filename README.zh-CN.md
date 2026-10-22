@@ -68,6 +68,8 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 ### 3、Windows 桌面会话悬浮窗
 
+“运行中”需要启动后观察到真实活动。历史扫描会静默校正最终状态，不会把旧的未完成日志直接当作正在运行。Claude API 连接错误、中断标记及截断等停止状态会退出运行列表，恢复真实活动后再显示。没有明确停止记录时，仍以日志静默超时兜底，并保留 500 分钟显示上限；标题中出现“断流后继续”等字样，本身不作为过滤依据。
+
 拖动顶部放置小窗，松开后自动保存位置；再次打开或重启 VS Code 都会恢复，包括放在副屏的位置。原屏幕断开或标题栏已经不可见时，会自动回到最近的可用屏幕，无需手动保存。
 
 ![Windows 悬浮窗，示例数据](image/floating-panel-preview.png)
@@ -110,6 +112,12 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月22日（0.4.8）：
+
+1. 修复运行中缓存覆盖历史完成记录；历史回放仅提交最终状态，并保留已有待查看结果。
+2. 纯历史会话等待真实活动后再显示，新增 Claude API 连接错误、中断和截断状态识别。
+3. Codex 中止后不会被迟到的错误重新激活；保留静默超时与 500 分钟限制兜底。
 
 ## 2026年10月22日（0.4.7）：
 

@@ -68,6 +68,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 ### 3. Windows floating session window
 
+Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
+
 Drag the header to position the panel; the location saves automatically when you release it. Reopening the panel or restarting VS Code restores that position, including on a secondary monitor. If that display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
 
 ![Windows floating session window with sample data](image/floating-panel-preview.png)
@@ -110,6 +112,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.8)
+
+1. Fix cached running states overriding actual historical completions; reconcile only each file's final state while preserving unread results.
+2. Hide baseline-only history until live activity resumes, and recognize Claude API errors, interruptions and truncated responses.
+3. Prevent late Codex errors from reviving aborted turns; retain the quiet timeout and 500-minute limit as fallbacks.
 
 ## October 22, 2026 (0.4.7)
 

@@ -126,6 +126,7 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     const lines = combined.split(/\r?\n/);
     tracker.remainder = combined.endsWith("\n") ? "" : (lines.pop() ?? "");
     for (const line of lines) this.processLine(tracker, line, emitNotifications);
+    if (!emitNotifications) tracker.activity.flushBaseline();
   }
 
   private processLine(tracker: ClaudeTracker, line: string, emitNotifications: boolean): void {

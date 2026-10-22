@@ -264,7 +264,7 @@ export function mergeChildSessionClassification(
 }
 
 export function isClaudeMainTaskCompletion(record: Record<string, unknown>): boolean {
-  if (record.type !== "assistant" || record.isSidechain === true) {
+  if (record.type !== "assistant" || record.isSidechain === true || record.isApiErrorMessage === true) {
     return false;
   }
 

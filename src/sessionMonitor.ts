@@ -183,6 +183,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
     const lines = combined.split(/\r?\n/);
     tracker.remainder = combined.endsWith("\n") ? "" : (lines.pop() ?? "");
     for (const line of lines) await this.processLine(tracker, line, emitNotifications);
+    if (!emitNotifications) tracker.activity.flushBaseline();
   }
 
   private async processLine(tracker: Tracker, line: string, emitNotifications: boolean): Promise<void> {
