@@ -68,6 +68,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 ### 3. Windows floating session window
 
+Conversation titles omit attachment transport markers, such as pasted-content tags, image paths, dimensions and coordinate hints. Readable text is retained; image-only/file-only prompts show “图片消息”/“附件消息”. Existing cached titles are also cleaned for display, without modifying original messages or logs.
+
 Use **A− / A+** in the header to decrease/increase text size immediately, one step per click (10–24 DIP). The default conversation text is now 14 DIP, up from 12; title text, red project names, status text and counts adjust together. The selected size is saved across reopening and restarting. These controls are separate from the collapse button.
 
 Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
@@ -114,6 +116,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.13)
+
+1. Clean pasted-content and attachment markers before title truncation, including cached native-panel titles; use readable labels for image-only/file-only prompts.
+2. Add shared title-cleaning fixtures and multimodal parser regression coverage.
 
 ## October 22, 2026 (0.4.12)
 

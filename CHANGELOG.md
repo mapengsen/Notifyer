@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.13 - 2026-10-22
+
+### Fixed / 修复
+
+- Clean conversation titles before truncating: remove pasted-content wrappers, image/file markers, image paths, dimensions, coordinate hints and attachment scaffolding while preserving readable text.
+- 标题先清理再截取，去除粘贴内容包装标签、图片／文件标记、图片路径、尺寸、坐标提示及附件说明，保留可读正文。
+- Image-only and file-only messages use readable placeholders. Existing cached titles are cleaned by the native panel immediately; future Codex/Claude titles are cleaned during activity parsing.
+- 纯图片／纯附件消息使用简短占位文字；原生窗口立即清理旧缓存标题，后续 Codex／Claude 标题在采集时清理。
+- Added shared regression fixtures for parser/native parity and multimodal title handling; original session logs and messages remain untouched.
+- 新增采集与原生窗口共用的清理样例及多模态标题回归验证，不修改原始日志和消息。
+
 ## 0.4.12 - 2026-10-22
 
 ### Changed / 调整

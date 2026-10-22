@@ -157,6 +157,30 @@ try {
     $project = $Label -replace '\s+·\s*(?:本地|ssh-remote|wsl|dev-container|attached-container|codespaces)\s*$', ''
     return ($project -replace '\s+\[(?:SSH|WSL|Dev Container|Container|Codespaces):[^\]]*\]\s*$', '').Trim()
   }
+  function Clean-SessionTitle([string]$Value) {
+    $text = $Value -replace '(?i)&lt;(/?(?:pasted_content|image|image_attachment|attachment|file|document)\b[\s\S]*?)&gt;', '<$1>'
+    $image = $text -match '(?im)\[(?:Image|图片)(?=\s*:|\s*#?\d*\s*\])|<image(?:_attachment)?\b|\bdata:image/|^\s*Image attachment:\s*true\s*$'
+    $attachment = $text -match '(?im)</?(?:pasted_content|attachment|file|document)\b|\[(?:File|Attachment|文件|附件)\s*:|^# Files mentioned by the user:'
+    if ($text -match '(?im)^# Files mentioned by the user:') {
+      $request = [regex]::Match($text, '(?im)^## My request:\s*')
+      if ($request.Success) { $text = $text.Substring($request.Index + $request.Length) }
+      else { $text = '' }
+    }
+    $text = $text -replace '(?i)<image(?:_attachment)?\b[^>]*>[\s\S]*?</image(?:_attachment)?\s*>', ' '
+    $text = $text -replace '(?i)</?(?:pasted_content|image|image_attachment|attachment|file|document)\b[^>]*>', ' '
+    $text = $text -replace '(?i)\[(?:Image|图片|File|Attachment|文件|附件)\s*:[^\]]*\]', ' '
+    $text = $text -replace '(?i)\[(?:Image|图片)(?:\s*#?\d+)?\]', ' '
+    $text = $text -replace '(?i)Multiply coordinates by\s+\d+(?:\.\d+)?\s+to map to (?:the )?original image\.?', ' '
+    $text = $text -replace '(?i)\bdata:image/[\w.+-]+;base64,[a-z\d+/=]+', ' '
+    $text = $text -replace '(?im)^\s*Image attachment:\s*(?:true|false)\s*$', ' '
+    $text = $text -replace '(?i)\[(?:Image|图片|File|Attachment|文件|附件)\s*:[^\]]*$', ' '
+    $text = $text -replace '(?i)</?(?:pasted_content|image|image_attachment|attachment|file|document)\b[^>]*$', ' '
+    $text = ($text -replace '\s+', ' ').Trim()
+    if ($text) { return [regex]::Match($text, '^(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDBFF]){0,100}').Value }
+    if ($image) { return '图片消息' }
+    if ($attachment) { return '附件消息' }
+    return ''
+  }
   function Resize-Panel([string]$Edges, [double]$Horizontal, [double]$Vertical) {
     $oldWidth = $script:window.Width
     $oldHeight = $script:window.Height
@@ -193,7 +217,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.12'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.13'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -446,7 +470,8 @@ try {
       [Windows.Controls.Grid]::SetColumn($statusText, 1)
       $null = $statusLine.Children.Add($statusText)
       $null = $stack.Children.Add($statusLine)
-      $title = if ($row.title) { [string]$row.title } else { '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
+      $title = Clean-SessionTitle ([string]$row.title)
+      if (-not $title) { $title = '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
       $heading = Text-Element $title (Theme-Color 'TextForeground') $script:fontSize
       $heading.Margin = '0,5,0,5'
       $heading.ToolTip = $title
@@ -492,6 +517,10 @@ try {
   Refresh-Panel
 
   if ($SelfTest) {
+    foreach ($case in (Read-Json (Join-Path $PSScriptRoot '..\scripts\title-cases.json'))) {
+      if ((Clean-SessionTitle $case.input) -cne $case.expected) { throw ('Attachment title cleanup failed: ' + $case.name) }
+    }
+    if ($script:cards[0].Child.Children[1].Text -ne '为 Notifyer 添加桌面会话悬浮窗' -or $script:cards[1].Child.Children[1].Text -ne '训练模型并验证精度') { throw 'Existing cached titles must render without attachment decorations.' }
     if ($script:window.Width -ne 280 -or $script:window.Height -ne 440) { throw 'Default geometry must be 280 x 440 DIP.' }
     if ($script:theme -ne 'night' -or $controls.ThemeButton.Content -ne [string][char]0xE708) { throw 'The default theme must be night with a moon symbol.' }
     function Assert-MetadataStyle {
@@ -640,7 +669,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.12' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.13' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

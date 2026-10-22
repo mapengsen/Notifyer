@@ -1,4 +1,5 @@
 import { isChildSessionMeta, isClaudeMainTaskCompletion } from "./core";
+import { cleanSessionTitle } from "./displayTitle";
 
 export type SessionStatus = "running" | "completed" | "failed" | "unknown";
 export interface SessionActivity {
@@ -23,10 +24,16 @@ function record(value: unknown): Record<string, unknown> {
 function string(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
-function contentText(message: unknown): string {
+function messageTitle(message: unknown): string {
   const content = record(message).content;
-  return typeof content === "string" ? content : Array.isArray(content)
+  const text = typeof content === "string" ? content : Array.isArray(content)
     ? content.filter((item) => record(item).type === "text").map((item) => string(record(item).text)).join(" ") : "";
+  const title = cleanSessionTitle(text);
+  if (title || !Array.isArray(content)) return title;
+  const types = content.map((item) => string(record(item).type));
+  if (types.some((type) => ["image", "input_image"].includes(type))) return "图片消息";
+  if (types.some((type) => ["document", "file", "input_file"].includes(type))) return "附件消息";
+  return "";
 }
 
 /** Tracks turns, rather than treating every assistant/tool message as a completion. */
@@ -94,7 +101,8 @@ export class SessionActivityTracker {
       }
       if (type === "user_message") {
         if (!this.current || this.current.turnId !== turnId) this.begin(turnId, at, live);
-        if (this.current) this.current.title = string(payload.message).replace(/\s+/g, " ").slice(0, 100);
+        if (this.current) this.current.title = cleanSessionTitle(payload.message)
+          || ([payload.images, payload.local_images].some((images) => Array.isArray(images) && images.length > 0) ? "图片消息" : "");
       }
       if (type === "task_complete") {
         if (!this.current || this.current.turnId !== turnId) this.begin(turnId, at, live);
@@ -114,7 +122,7 @@ export class SessionActivityTracker {
 
     const content = record(input.message).content;
     const toolResult = Array.isArray(content) && content.some((item) => record(item).type === "tool_result");
-    const title = contentText(input.message).replace(/\s+/g, " ").slice(0, 100);
+    const title = messageTitle(input.message);
     const stopReason = string(record(input.message).stop_reason);
     if ((input.type === "system" && input.subtype === "api_error")
       || (input.type === "assistant" && input.isApiErrorMessage === true)

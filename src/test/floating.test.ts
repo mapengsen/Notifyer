@@ -4,9 +4,34 @@ import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
 import { SessionActivity, SessionActivityTracker } from "../sessionActivity";
+import { cleanSessionTitle } from "../displayTitle";
 import { acknowledgementKey, aggregateSessions, applyActivity, atomicWriteJson, isPanelHealthy, panelVisibility, StoredSession, WindowSnapshot } from "../floatingState";
 
 const now = 1_800_000_000_000;
+const titleCases = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../scripts/title-cases.json"), "utf8")) as Array<{ name: string; input: string; expected: string }>;
+for (const fixture of titleCases) {
+  test(`attachment title: ${fixture.name}`, () => assert.equal(cleanSessionTitle(fixture.input), fixture.expected));
+}
+test("multimodal Claude messages keep real text and give attachment-only turns readable titles", () => {
+  for (const [content, expected] of [
+    [[{ type: "image", source: { type: "base64", data: "private-payload" } }, { type: "text", text: "<pasted_content id='a'>解释图片</pasted_content>" }], "解释图片"],
+    [[{ type: "image", source: { type: "base64", data: "private-payload" } }], "图片消息"],
+    [[{ type: "document", source: { type: "base64", data: "private-payload" } }], "附件消息"],
+  ] as const) {
+    const updates: SessionActivity[] = [];
+    const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human", message: { content } }, true, now);
+    assert.equal(updates.at(-1)?.title, expected);
+    assert.equal(updates.at(-1)?.status, "running");
+  }
+});
+test("Codex cleans full prompt text before storing the title and supports image-only turns", () => {
+  const { tracker, updates } = codexTracker();
+  tracker.consume(event("user_message", { message: titleCases.find((item) => item.name === "clean before truncation")!.input }), true, now);
+  assert.equal(updates.at(-1)?.title, "真正的用户需求");
+  tracker.consume(event("user_message", { turn_id: "turn-2", message: "", images: ["private.png"] }), true, now + 1);
+  assert.equal(updates.at(-1)?.title, "图片消息");
+});
 test("panel watchdog treats a hidden panel as healthy and detects stale or missing helpers", () => {
   const heartbeat = { pid: 1234, updatedAt: now, visible: false, version: "0.4.1" };
   assert.equal(isPanelHealthy(heartbeat, now), true);
