@@ -82,6 +82,7 @@ try {
   $reader.Close()
   $script:collapsed = $false
   $script:theme = 'night'
+  $script:fontSize = 14
   $script:desktopEnabled = $false
   $script:lastModel = ''
   $script:lastControl = if ($StartHidden) { (Read-Json (Join-Path $StateRoot 'control.json')).id } else { '' }
@@ -93,9 +94,10 @@ try {
   $script:unreadCount = 0
   $script:rememberGeometry = $false
   $script:geometryCollapsed = $null
+  $script:geometryFontSize = $null
   $controls = @{}
   $resizeNames = @('ResizeN','ResizeS','ResizeW','ResizeE','ResizeNW','ResizeNE','ResizeSW','ResizeSE')
-  foreach ($name in (@('Header','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionDot','SessionScroll','SessionList') + $resizeNames)) {
+  foreach ($name in (@('Header','FontDecreaseButton','FontIncreaseButton','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionDot','SessionScroll','SessionList') + $resizeNames)) {
     $controls[$name] = $script:window.FindName($name)
   }
   $dayPalette = @{}
@@ -121,6 +123,7 @@ try {
   $script:window.Top = $workArea.Top + 80
   $preferencesPath = Join-Path $StateRoot 'preferences.json'
   $preferences = Read-Json $preferencesPath
+  $script:fontSize = Saved-Dimension $preferences.fontSize 14 10 24
   $script:window.Width = Saved-Dimension $preferences.width $script:window.Width $script:window.MinWidth ([Windows.SystemParameters]::VirtualScreenWidth)
   $script:window.Height = Saved-Dimension $preferences.height $script:window.Height 200 ([Windows.SystemParameters]::VirtualScreenHeight)
   $script:expandedHeight = $script:window.Height
@@ -146,7 +149,7 @@ try {
   if ($notificationPolicy) { $script:desktopEnabled = ($notificationPolicy.desktopEnabled -is [bool]) -and $notificationPolicy.desktopEnabled }
   function Save-Preferences {
     if ($script:geometryTimer) { $script:geometryTimer.Stop() }
-    Write-Json $preferencesPath @{ left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; topmost = $script:window.Topmost; collapsed = $script:collapsed; theme = $script:theme }
+    Write-Json $preferencesPath @{ left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; topmost = $script:window.Topmost; collapsed = $script:collapsed; theme = $script:theme; fontSize = $script:fontSize }
   }
   function Set-PanelStatus([string]$Text) { $script:window.ToolTip = $Text }
   function Compact-OwnerLabel([string]$Label) { return ($Label -replace '(?:\s*·\s*|^)ssh-remote\b', '').Trim() }
@@ -186,15 +189,22 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.10'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.11'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
+    $controls.RunningCount.FontSize = $script:fontSize - 1
+    $controls.UnreadCount.FontSize = $script:fontSize - 1
+    $controls.FontDecreaseButton.IsEnabled = $script:fontSize -gt 10
+    $controls.FontIncreaseButton.IsEnabled = $script:fontSize -lt 24
+    $controls.FontDecreaseButton.ToolTip = '缩小字体（当前 ' + $script:fontSize + '）'
+    $controls.FontIncreaseButton.ToolTip = '放大字体（当前 ' + $script:fontSize + '）'
     $controls.Body.Visibility = if ($script:collapsed) { 'Collapsed' } else { 'Visible' }
-    if ($script:geometryCollapsed -ne $script:collapsed) {
-      if ($script:collapsed) { $script:window.MinHeight = 104; $script:window.Height = 104 }
+    if ($script:geometryCollapsed -ne $script:collapsed -or $script:geometryFontSize -ne $script:fontSize) {
+      if ($script:collapsed) { $script:window.MinHeight = 104; $script:window.Height = 104 + [Math]::Max(0, $script:fontSize - 14) * 2 }
       else { $script:window.MinHeight = 200; $script:window.Height = $script:expandedHeight }
       $script:geometryCollapsed = $script:collapsed
+      $script:geometryFontSize = $script:fontSize
     }
     $controls.CollapseButton.Content = if ($script:collapsed) { '+' } else { '−' }
     $controls.PinButton.Background = if ($script:window.Topmost) { $script:window.Resources['PinBackground'] } else { $script:window.Resources['ButtonBackground'] }
@@ -225,6 +235,16 @@ try {
   $controls.PinButton.Add_Click({ $script:window.Topmost = -not $script:window.Topmost; Update-Chrome; Save-Preferences })
   $controls.CollapseButton.Add_Click({ $script:collapsed = -not $script:collapsed; Update-Chrome; Save-Preferences })
   $controls.HideButton.Add_Click({ $script:window.Hide(); Write-Heartbeat; Save-Preferences })
+  function Change-FontSize([int]$Delta) {
+    $script:fontSize = [Math]::Max(10, [Math]::Min(24, $script:fontSize + $Delta))
+    $script:lastModel = ''
+    Update-Chrome
+    Save-Preferences
+    Refresh-Panel
+    Write-Heartbeat
+  }
+  $controls.FontDecreaseButton.Add_Click({ Change-FontSize -1 })
+  $controls.FontIncreaseButton.Add_Click({ Change-FontSize 1 })
   $controls.ThemeButton.Add_Click({
     $script:theme = if ($script:theme -eq 'day') { 'night' } else { 'day' }
     Apply-Theme; Save-Preferences; Refresh-Panel
@@ -356,7 +376,7 @@ try {
     # The same filtered rows drive the list and counts, including when a turn
     # crosses 500 minutes without receiving another log update.
     $visibleRows = @(Get-VisibleRows $model.rows $now $stale)
-    $signature = ($visibleRows | ConvertTo-Json -Depth 18 -Compress) + ':' + $stale + ':' + [Math]::Floor($now / 60000) + ':' + $script:theme
+    $signature = ($visibleRows | ConvertTo-Json -Depth 18 -Compress) + ':' + $stale + ':' + [Math]::Floor($now / 60000) + ':' + $script:theme + ':' + $script:fontSize
     $running = 0
     $pending = 0
     foreach ($visible in $visibleRows) {
@@ -418,12 +438,12 @@ try {
       $statusLine.ColumnDefinitions[0].Width = 'Auto'
       $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $null = $statusLine.Children.Add((Status-Indicator ($status -eq 'running')))
-      $statusText = Text-Element ($provider + ' · ' + $statusLabel) $color 10
+      $statusText = Text-Element ($provider + ' · ' + $statusLabel) $color ($script:fontSize - 2)
       [Windows.Controls.Grid]::SetColumn($statusText, 1)
       $null = $statusLine.Children.Add($statusText)
       $null = $stack.Children.Add($statusLine)
       $title = if ($row.title) { [string]$row.title } else { '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
-      $heading = Text-Element $title (Theme-Color 'TextForeground') 12
+      $heading = Text-Element $title (Theme-Color 'TextForeground') $script:fontSize
       $heading.Margin = '0,5,0,5'
       $heading.ToolTip = $title
       $null = $stack.Children.Add($heading)
@@ -463,7 +483,7 @@ try {
       $script:cards += $card
     }
     if ($controls.SessionList.Children.Count -eq 0) {
-      $empty = Text-Element '暂无会话' (Theme-Color 'MutedForeground') 11
+      $empty = Text-Element '暂无会话' (Theme-Color 'MutedForeground') ($script:fontSize - 1)
       $empty.Margin = '4,18,4,18'
       $null = $controls.SessionList.Children.Add($empty)
     }
@@ -477,11 +497,30 @@ try {
     function Assert-MetadataStyle {
       foreach ($card in $script:cards) {
         $heading = $card.Child.Children[1]
+        if ($heading.FontSize -ne $script:fontSize) { throw 'The selected font size must apply to conversation titles immediately.' }
         foreach ($line in $card.Child.Children[2].Children[0].Children) {
           if ($line.FontSize -ne $heading.FontSize -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground')) { throw 'Project and runtime must match the title font size and use the red metadata color.' }
         }
       }
     }
+    if ($script:fontSize -ne 14 -or $controls.RunningCount.FontSize -ne 13) { throw 'Default text must be one step larger.' }
+    $controls.FontIncreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    $controls.FontIncreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ($script:fontSize -ne 16 -or (Read-Json $preferencesPath).fontSize -ne 16) { throw 'Increasing the font must update and save immediately.' }
+    Assert-MetadataStyle
+    $controls.FontDecreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ($script:fontSize -ne 15 -or (Read-Json $preferencesPath).fontSize -ne 15) { throw 'Decreasing the font must update and save immediately.' }
+    Assert-MetadataStyle
+    Change-FontSize 100
+    if ($script:fontSize -ne 24 -or $controls.FontIncreaseButton.IsEnabled) { throw 'The font maximum must be enforced.' }
+    $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ($script:window.Height -lt 124) { throw 'Collapsed controls must have enough room for larger text.' }
+    $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ($script:window.Height -ne 440) { throw 'Large-font collapse must preserve the expanded height.' }
+    Change-FontSize -100
+    if ($script:fontSize -ne 10 -or $controls.FontDecreaseButton.IsEnabled) { throw 'The font minimum must be enforced.' }
+    Change-FontSize 4
+    Assert-MetadataStyle
     if ((Theme-Color 'MetadataForeground') -ne '#FFFF6262') { throw 'Night metadata must be red.' }
     Assert-MetadataStyle
     $controls.ThemeButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
@@ -597,7 +636,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.10' -or $health.width -ne 280 -or $health.height -ne 440) { throw 'Panel heartbeat geometry failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.11' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

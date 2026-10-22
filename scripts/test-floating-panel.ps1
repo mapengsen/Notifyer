@@ -28,13 +28,14 @@ $ErrorActionPreference = 'Stop'
 try {
   if ($script:window.Width -ne 245 -or $script:window.Height -ne 420 -or $script:window.Left -ne 200 -or $script:window.Top -ne 200) { throw 'A new helper must restore saved size and position exactly.' }
   if ($script:theme -ne 'day') { throw 'An explicit saved day theme must override the night default.' }
+  if ($script:fontSize -ne 17 -or $script:cards[0].Child.Children[1].FontSize -ne 17) { throw 'A new helper must restore and render the saved font size.' }
   [Console]::Out.WriteLine('geometry-restart=passed')
 } finally { $script:window.Close() }
 '@
 [IO.File]::WriteAllText($restoreScript, $restoreSource, $encoding)
 try {
   $saved = $originalPreferences | ConvertFrom-Json
-  $saved.width = 245; $saved.height = 420; $saved.left = 200; $saved.top = 200
+  $saved.width = 245; $saved.height = 420; $saved.left = 200; $saved.top = 200; $saved.fontSize = 17
   [IO.File]::WriteAllText($preferencesFile, ($saved | ConvertTo-Json), $encoding)
   & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $restoreScript -Helper $scriptFile -Root $OutputDirectory
   if ($LASTEXITCODE -ne 0) { throw 'Geometry restoration failed' }

@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.11 - 2026-10-22
+
+### Added / 新增
+
+- Added **A− / A+** header controls for immediate font adjustment, saving the selected size across reopening and restarting. The default conversation font increases from 12 to 14 DIP; titles, red metadata, statuses and counts adjust together.
+- 顶部新增 **A− / A+** 字号按钮，点击立即调整并保存，重开及重启后恢复。默认会话字号从 12 增至 14，标题、红色详情、状态及计数同步调整。
+- Enforced 10–24 DIP limits, disabled controls at the boundaries and allowed extra collapsed height for larger text. Native checks cover both buttons, immediate styling, persistence and fresh-process font restoration.
+- 字号限制在 10–24 DIP，到达边界时禁用对应按钮；大字下折叠高度自适应。原生验证覆盖增减按钮、即时样式、保存及新进程恢复字号。
+
 ## 0.4.10 - 2026-10-22
 
 ### Changed / 调整

@@ -68,6 +68,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 ### 3. Windows floating session window
 
+Use **A− / A+** in the header to decrease/increase text size immediately, one step per click (10–24 DIP). The default conversation text is now 14 DIP, up from 12; title text, red project/runtime details, status text and counts adjust together. The selected size is saved across reopening and restarting. These controls are separate from the collapse button.
+
 Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
 
 The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Project names and runtime use the same font size as the conversation title, in red. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
@@ -112,6 +114,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.11)
+
+1. Increase the default conversation font from 12 to 14 DIP and add header **A− / A+** buttons for immediate font adjustments.
+2. Save the chosen font size across restarts; keep titles and red details synchronized, enforce 10–24 DIP limits, and accommodate larger text when collapsed.
 
 ## October 22, 2026 (0.4.10)
 

@@ -76,11 +76,14 @@
       <Grid x:Name="Header" Background="Transparent" Cursor="SizeAll">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Grid VerticalAlignment="Center">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <Ellipse x:Name="ConnectionDot" Width="6" Height="6" Fill="{DynamicResource Accent}" Margin="0,0,6,0"/>
-          <TextBlock Text="Notifyer" Foreground="{DynamicResource TitleForeground}" FontSize="14" FontWeight="SemiBold"/>
-        </StackPanel>
+          <TextBlock Grid.Column="1" Text="Notifyer" Foreground="{DynamicResource TitleForeground}" FontSize="14" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+        </Grid>
         <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="FontDecreaseButton" Content="A−" FontSize="11" Width="26" Padding="2,4" Margin="0,0,3,0" ToolTip="缩小字体" AutomationProperties.Name="缩小字体"/>
+          <Button x:Name="FontIncreaseButton" Content="A+" FontSize="11" Width="26" Padding="2,4" Margin="0,0,3,0" ToolTip="放大字体" AutomationProperties.Name="放大字体"/>
           <Button x:Name="ThemeButton" Content="&#xE708;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="22" Padding="3,4"
                   Margin="0,0,3,0" ToolTip="切换白天 / 夜晚配色" AutomationProperties.Name="切换白天或夜晚配色"/>
           <Button x:Name="CollapseButton" Content="−" Width="22" Padding="3,3" Margin="0,0,3,0" ToolTip="折叠 / 展开"/>
@@ -94,10 +97,10 @@
       <Grid Grid.Row="1" Margin="0,8,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
         <Border Background="{DynamicResource RunningBackground}" CornerRadius="6" Padding="7,6" Margin="0,0,3,0">
-          <TextBlock x:Name="RunningCount" Text="运行中  0" Foreground="{DynamicResource RunningForeground}" FontSize="11"/>
+          <TextBlock x:Name="RunningCount" Text="运行中  0" Foreground="{DynamicResource RunningForeground}" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
         </Border>
         <Border Grid.Column="1" Background="{DynamicResource UnreadBackground}" CornerRadius="6" Padding="7,6" Margin="3,0,0,0">
-          <TextBlock x:Name="UnreadCount" Text="待查看  0" Foreground="{DynamicResource UnreadForeground}" FontSize="11"/>
+          <TextBlock x:Name="UnreadCount" Text="待查看  0" Foreground="{DynamicResource UnreadForeground}" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
         </Border>
       </Grid>
       <Grid x:Name="Body" Grid.Row="2" Margin="0,8,0,0">
