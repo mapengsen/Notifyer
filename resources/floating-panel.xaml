@@ -22,6 +22,7 @@
     <SolidColorBrush x:Key="UnreadBorder" Color="#E0BC7E"/>
     <SolidColorBrush x:Key="TextForeground" Color="#000000"/>
     <SolidColorBrush x:Key="Accent" Color="#38B49A"/>
+    <SolidColorBrush x:Key="StatusIndicator" Color="#1676D2"/>
     <SolidColorBrush x:Key="ScrollThumb" Color="#ACBCD0"/>
     <Style TargetType="Button">
       <Setter Property="Foreground" Value="{DynamicResource ButtonForeground}"/>
@@ -77,7 +78,7 @@
           <Button x:Name="NotificationButton" Content="桌面通知 关" FontSize="10" Margin="0,0,5,0" ToolTip="开启 / 关闭所有窗口的桌面通知"/>
           <Button x:Name="PinButton" Content="置顶" FontSize="10" Margin="0,0,5,0" ToolTip="切换始终置顶"/>
           <Button x:Name="CollapseButton" Content="−" Padding="8,3" Margin="0,0,5,0" ToolTip="折叠 / 展开"/>
-          <Button x:Name="HideButton" Content="×" Padding="8,3" ToolTip="隐藏；在 VS Code 命令面板中重新显示"/>
+          <Button x:Name="HideButton" Content="×" Padding="8,3" ToolTip="隐藏；点击 VS Code 底部 Notifyer 图标重新显示"/>
         </StackPanel>
       </Grid>
       <Grid Margin="0,0,0,4">

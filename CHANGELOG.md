@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.5 - 2026-10-22
+
+### Changed / 调整
+
+- Running turns exceeding 500 minutes are hidden from both the panel list and running count, even without new log activity. Later completions remain available for review and new turns are timed separately.
+- 本轮运行超过 500 分钟后从悬浮窗列表及运行中计数隐藏，无需等待新日志；后续完成仍可进入待查看，新一轮重新计时。
+- Added a continuously rotating indicator before running cards and a blue dot before unread results in both themes. Animations stop when cards are hidden or unloaded.
+- 运行中卡片前新增持续转圈动画，待查看结果前新增蓝点，适配昼夜配色；卡片隐藏或移除时停止动画。
+
 ## 0.4.4 - 2026-10-22
 
 ### Added / 新增

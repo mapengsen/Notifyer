@@ -67,7 +67,7 @@ try {
     ButtonForeground='#CFD8E6'; ButtonBackground='#243249'; PinBackground='#245547'
     NotificationOn='#245547'; NotificationOff='#573B43'; RunningBackground='#1A2D41'; RunningForeground='#83C9FF'
     UnreadBackground='#352F27'; UnreadForeground='#F2C685'; CardBackground='#1A273B'; CardBorder='#2C3C53'
-    UnreadBorder='#756044'; TextForeground='#ECF2FC'; Accent='#72DFC2'; ScrollThumb='#53647D'
+    UnreadBorder='#756044'; TextForeground='#ECF2FC'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
   }
 
   $workArea = [Windows.SystemParameters]::WorkArea
@@ -92,7 +92,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.4'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.5'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
     }
   }
   function Update-Chrome {
@@ -144,6 +144,59 @@ try {
     $textBlock.FontSize = $Size
     $textBlock.TextWrapping = 'Wrap'
     return $textBlock
+  }
+  function Set-SpinnerMotion($Indicator, [bool]$Active) {
+    if ($Active) {
+      $animation = New-Object Windows.Media.Animation.DoubleAnimation
+      $animation.From = 0
+      $animation.To = 360
+      $animation.Duration = [Windows.Duration]::new([TimeSpan]::FromMilliseconds(900))
+      $animation.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+      $Indicator.RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty, $animation)
+    } else {
+      $Indicator.RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty, $null)
+    }
+  }
+  function Status-Indicator([bool]$Running) {
+    if ($Running) {
+      $indicator = New-Object Windows.Shapes.Path
+      $indicator.Width = 12
+      $indicator.Height = 12
+      $indicator.Data = [Windows.Media.Geometry]::Parse('M 6,1 A 5,5 0 1 1 1,6')
+      $indicator.Stroke = Theme-Color 'StatusIndicator'
+      $indicator.StrokeThickness = 1.8
+      $indicator.StrokeStartLineCap = 'Round'
+      $indicator.StrokeEndLineCap = 'Round'
+      $indicator.RenderTransform = [Windows.Media.RotateTransform]::new(0, 6, 6)
+      # Native animation runs independently of log polling; stop it when hidden
+      # or removed so old cards never keep animation clocks alive.
+      $indicator.Add_IsVisibleChanged({ param($sender, $event) Set-SpinnerMotion $sender $sender.IsVisible })
+      $indicator.Add_Unloaded({ param($sender, $event) Set-SpinnerMotion $sender $false })
+      $indicator.ToolTip = '运行中'
+    } else {
+      $indicator = New-Object Windows.Shapes.Ellipse
+      $indicator.Width = 7
+      $indicator.Height = 7
+      $indicator.Fill = Theme-Color 'StatusIndicator'
+      $indicator.ToolTip = '待查看'
+    }
+    $indicator.Margin = '0,0,7,0'
+    $indicator.VerticalAlignment = 'Center'
+    return $indicator
+  }
+  function Get-VisibleRows($Rows, [double]$Now, [bool]$Stale) {
+    foreach ($row in @($Rows)) {
+      if (-not $row) { continue }
+      $status = [string]$row.status
+      if ($Stale -and $status -eq 'running') { $status = 'unknown' }
+      # Filter the current turn's duration, not its last log activity. Keep the
+      # stored session so a later completion still becomes an unread result.
+      if ($status -eq 'running' -and $Now - [double]$row.startedAt -gt 500 * 60000) { continue }
+      $unread = $row.unread -and -not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))
+      if ($status -eq 'running' -or $unread) {
+        [pscustomobject]@{ row = $row; status = $status; unread = $unread }
+      }
+    }
   }
   function Mark-Read($Row) {
     if ([string]$Row.acknowledgement -notmatch '^[a-f0-9]{64}$') { return }
@@ -197,13 +250,15 @@ try {
     $now = Now-Ms
     if ($now - [double]$model.updatedAt -lt 15000) { $script:lastLiveAt = $now }
     $stale = $now - [double]$model.updatedAt -ge 15000
-    # Heartbeat timestamps change independently of session content.
-    $signature = ($model.rows | ConvertTo-Json -Depth 15 -Compress) + ':' + $stale + ':' + [Math]::Floor($now / 60000) + ':' + $script:theme
+    # The same filtered rows drive the list and counts, including when a turn
+    # crosses 500 minutes without receiving another log update.
+    $visibleRows = @(Get-VisibleRows $model.rows $now $stale)
+    $signature = ($visibleRows | ConvertTo-Json -Depth 18 -Compress) + ':' + $stale + ':' + [Math]::Floor($now / 60000) + ':' + $script:theme
     $running = 0
     $pending = 0
-    foreach ($row in @($model.rows)) {
-      if ($row.status -eq 'running' -and -not $stale) { $running++ }
-      if ($row.unread -and -not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))) { $pending++ }
+    foreach ($visible in $visibleRows) {
+      if ($visible.status -eq 'running') { $running++ }
+      if ($visible.unread) { $pending++ }
     }
     $controls.RunningCount.Text = '运行中  ' + $running
     $controls.UnreadCount.Text = '待查看  ' + $pending
@@ -213,12 +268,10 @@ try {
     $scrollOffset = $controls.SessionScroll.VerticalOffset
     $controls.SessionList.Children.Clear()
     $script:cards = @()
-    foreach ($row in @($model.rows)) {
-      if (-not $row) { continue }
-      $unread = $row.unread -and -not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))
-      $status = [string]$row.status
-      if ($stale -and $status -eq 'running') { $status = 'unknown' }
-      if ($status -ne 'running' -and -not $unread) { continue }
+    foreach ($visible in $visibleRows) {
+      $row = $visible.row
+      $unread = $visible.unread
+      $status = $visible.status
       $statusLabel = switch ($status) {
         'running' { '运行中' }
         'completed' { if ($unread) { '已完成 · 待查看' } else { '已完成 · 已查看' } }
@@ -254,7 +307,11 @@ try {
       $stack = New-Object Windows.Controls.StackPanel
       $card.Child = $stack
       $provider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
-      $null = $stack.Children.Add((Text-Element ($provider + '  /  ' + $statusLabel) $color 11))
+      $statusLine = New-Object Windows.Controls.StackPanel
+      $statusLine.Orientation = 'Horizontal'
+      $null = $statusLine.Children.Add((Status-Indicator ($status -eq 'running')))
+      $null = $statusLine.Children.Add((Text-Element ($provider + '  /  ' + $statusLabel) $color 11))
+      $null = $stack.Children.Add($statusLine)
       $title = if ($row.title) { [string]$row.title } else { '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
       $heading = Text-Element $title (Theme-Color 'TextForeground') 13
       $heading.Margin = '0,6,0,5'
@@ -296,6 +353,24 @@ try {
 
   if ($SelfTest) {
     if ($script:cards.Count -ne 2) { throw 'Panel must show only running and unread fixture rows.' }
+    if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
+    $dot = $script:cards[0].Child.Children[0].Children[0]
+    $spinner = $script:cards[1].Child.Children[0].Children[0]
+    if ($dot -isnot [Windows.Shapes.Ellipse] -or $dot.Fill.ToString() -ne '#FF1676D2') { throw 'Unread results must have a blue dot.' }
+    if ($spinner -isnot [Windows.Shapes.Path]) { throw 'Running cards must have a spinner.' }
+    Set-SpinnerMotion $spinner $true
+    if (-not $spinner.RenderTransform.HasAnimatedProperties) { throw 'The spinner must animate continuously.' }
+    Set-SpinnerMotion $spinner $false
+    if ($spinner.RenderTransform.HasAnimatedProperties) { throw 'Hidden/unloaded spinners must release their animation clocks.' }
+    $boundary = [pscustomobject]@{ status = 'running'; startedAt = 1000000; unread = $false }
+    $cutoff = $boundary.startedAt + 500 * 60000
+    if (@(Get-VisibleRows @($boundary) ($cutoff - 1) $false).Count -ne 1) { throw 'A turn below 500 minutes must remain visible.' }
+    if (@(Get-VisibleRows @($boundary) $cutoff $false).Count -ne 1) { throw 'Exactly 500 minutes must remain visible.' }
+    if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 0) { throw 'A turn exceeding 500 minutes must be hidden.' }
+    $boundary.status = 'completed'; $boundary.unread = $true
+    if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 1) { throw 'Long-running completions must remain available for review.' }
+    $boundary.status = 'running'; $boundary.unread = $false; $boundary.startedAt = $cutoff
+    if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 1) { throw 'A fresh turn must be visible after an old turn was hidden.' }
     if ($script:theme -ne 'day') { throw 'The default theme must be day.' }
     if ($script:desktopEnabled) { throw 'Desktop notifications must default off, even with a legacy model.' }
     foreach ($key in @('TitleForeground','MutedForeground','ButtonForeground','RunningForeground','UnreadForeground','TextForeground')) {
@@ -345,7 +420,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.4') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.5') { throw 'Panel heartbeat failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
