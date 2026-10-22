@@ -217,7 +217,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.13'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.14'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -353,25 +353,28 @@ try {
     Write-Json (Join-Path $StateRoot ('read\' + $Row.acknowledgement + '.json')) @{ at = (Now-Ms) }
     $script:lastModel = ''
   }
-  function Request-Focus($Owner) {
+  function Request-Focus($Owner, $Row) {
     if (-not $Owner -or -not $Owner.online -or [string]$Owner.windowId -notmatch '^[a-f0-9-]+$') {
       Set-PanelStatus '窗口未连接'
       return
     }
     $commandFile = Join-Path $StateRoot ('commands\' + $Owner.windowId + '\' + [guid]::NewGuid().ToString() + '.json')
-    Write-Json $commandFile @{ type = 'focus' }
+    Write-Json $commandFile @{
+      type = 'focus'; key = $Row.key; provider = $Row.provider; sessionId = $Row.sessionId
+      turnId = $Row.turnId; acknowledgement = $Row.acknowledgement; requestedAt = (Now-Ms)
+    }
     Set-PanelStatus ''
   }
   function Activate-Card($Card, [bool]$ShowMenu = $true) {
     if ($Card.Tag.stale) { Set-PanelStatus '窗口未连接'; return }
     $owners = @($Card.Tag.owners | Where-Object { $_.online })
-    if ($owners.Count -le 1) { Request-Focus ($owners | Select-Object -First 1); return }
+    if ($owners.Count -le 1) { Request-Focus ($owners | Select-Object -First 1) $Card.Tag.row; return }
     $menu = New-Object Windows.Controls.ContextMenu
     foreach ($owner in $owners) {
       $item = New-Object Windows.Controls.MenuItem
       $item.Header = (Compact-OwnerLabel $owner.label) + ' · ' + ([string]$owner.windowId).Substring(0, 4)
-      $item.Tag = $owner
-      $item.Add_Click({ param($sender, $event) Request-Focus $sender.Tag })
+      $item.Tag = @{ owner = $owner; row = $Card.Tag.row }
+      $item.Add_Click({ param($sender, $event) Request-Focus $sender.Tag.owner $sender.Tag.row })
       $null = $menu.Items.Add($item)
     }
     $Card.ContextMenu = $menu
@@ -442,8 +445,8 @@ try {
       $card.Margin = '0,0,0,6'
       $card.Cursor = 'Hand'
       $card.Focusable = $true
-      $card.ToolTip = '点击切换到对应的 VS Code 窗口'
-      $card.Tag = @{ owners = @($row.owners); stale = $stale }
+      $card.ToolTip = '点击打开对应对话，成功后自动标记已查看'
+      $card.Tag = @{ owners = @($row.owners); stale = $stale; row = $row }
       $card.Add_MouseLeftButtonUp({
         param($sender, $event)
         $element = $event.OriginalSource
@@ -650,18 +653,40 @@ try {
     $script:cards[0].RaiseEvent($click)
     $focusFiles = @(Get-ChildItem -LiteralPath (Join-Path $StateRoot ('commands\' + $pendingRow.owners[0].windowId)) -Filter '*.json')
     if ($focusFiles.Count -lt 1 -or (Read-Json $focusFiles[0].FullName).type -ne 'focus') { throw 'Focus IPC failed' }
-    if ([IO.File]::Exists((Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')))) { throw 'Focus must not mark a result as read' }
+    $focusTarget = Read-Json $focusFiles[0].FullName
+    foreach ($field in @('key','provider','sessionId','turnId','acknowledgement')) {
+      if ($focusTarget.$field -ne $pendingRow.$field) { throw ('Focus must identify the exact clicked session and turn: ' + $field) }
+    }
+    if ([IO.File]::Exists((Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')))) { throw 'Sending a focus request must wait for successful session navigation before marking read' }
     $firstCard = $script:cards[0]
     $firstCard.Tag.owners += @{ windowId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'; label = 'Second matching window'; online = $true }
     Activate-Card $firstCard $false
     if ($firstCard.ContextMenu.Items.Count -ne 2) { throw 'Matching-window chooser failed' }
     $firstCard.ContextMenu.Items[1].RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.MenuItem]::ClickEvent)))
-    if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot 'commands\eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') -Filter '*.json').Count -ne 1) { throw 'Chosen window must receive focus IPC' }
+    $chosenFiles = @(Get-ChildItem -LiteralPath (Join-Path $StateRoot 'commands\eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') -Filter '*.json')
+    if ($chosenFiles.Count -ne 1) { throw 'Chosen window must receive focus IPC' }
+    $chosenTarget = Read-Json $chosenFiles[0].FullName
+    if ($chosenTarget.key -ne $pendingRow.key -or $chosenTarget.turnId -ne $pendingRow.turnId) { throw 'The window chooser must preserve the clicked conversation identity.' }
     $script:cards[0].Tag.readButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     if (-not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')))) { throw 'Read acknowledgement failed' }
     if ($script:cards.Count -ne 1 -or $controls.UnreadCount.Text -ne '待查看  0') { throw 'Reviewed results must disappear immediately.' }
     if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot ('commands\' + $pendingRow.owners[0].windowId)) -Filter '*.json').Count -ne $focusFiles.Count) { throw 'Marking read must not activate a window.' }
     Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
+    # A host acknowledgement for one selected result must not remove another
+    # unread conversation, including another conversation in the same window.
+    $originalModel = Read-Json (Join-Path $StateRoot 'model.json')
+    $otherPending = ($pendingRow | ConvertTo-Json -Depth 15) | ConvertFrom-Json
+    $otherPending.key = 'codex:other'; $otherPending.sessionId = 'session-other'; $otherPending.turnId = 'turn-other'
+    $otherPending.acknowledgement = ('f' * 64)
+    Write-Json (Join-Path $StateRoot 'model.json') @{ updatedAt = (Now-Ms); rows = @($originalModel.rows) + @($otherPending) }
+    Refresh-Panel
+    if ($script:unreadCount -ne 2) { throw 'Both same-window conversations must initially remain unread.' }
+    Write-Json (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')) @{ at = (Now-Ms); source = 'session-opened' }
+    Refresh-Panel
+    if ($script:unreadCount -ne 1 -or @($script:cards | Where-Object { $_.Tag.row.key -eq $pendingRow.key }).Count -ne 0 -or @($script:cards | Where-Object { $_.Tag.row.key -eq $otherPending.key }).Count -ne 1) { throw 'Only the confirmed result may disappear; other conversations in the same window must remain.' }
+    Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
+    Write-Json (Join-Path $StateRoot 'model.json') $originalModel
+    Refresh-Panel
     # A rapid show/hide pair must leave the startup window hidden, and the
     # heartbeat must acknowledge the final request so all status bars agree.
     Write-Json (Join-Path $StateRoot 'control.json') @{ type = 'show'; id = 'test-show' }
@@ -669,7 +694,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.13' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.14' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

@@ -6,6 +6,8 @@ import * as vscode from "vscode";
 import { workspacePathsOverlap } from "./core";
 import { areDesktopNotificationsEnabled, focusOriginatingWindow, getNotificationDiagnostics } from "./notify";
 import { SessionActivity } from "./sessionActivity";
+import { focusSession, SessionFocusRequest } from "./sessionFocus";
+import { openSession } from "./sessionNavigator";
 import { aggregateSessions, applyActivity, atomicWriteJson, digest, isPanelHealthy, panelVisibility, PanelHeartbeat, PanelVisibilityRequest, StoredSession, WindowSnapshot } from "./floatingState";
 
 export class FloatingPanel implements vscode.Disposable {
@@ -21,6 +23,8 @@ export class FloatingPanel implements vscode.Disposable {
   private launchAttempts = 0;
   private lastExit = "";
   private existingHelperDetected = false;
+  private focusGeneration = 0;
+  private focusQueue: Promise<void> = Promise.resolve();
   private readonly statusItem: vscode.StatusBarItem | undefined;
   private readonly statusTimer: NodeJS.Timeout | undefined;
   private readonly output = vscode.window.createOutputChannel("Notifyer Floating Window");
@@ -165,17 +169,42 @@ export class FloatingPanel implements vscode.Disposable {
     });
     const commands = path.join(this.root, "commands", this.windowId);
     if (!fs.existsSync(commands)) return;
+    const pending: Array<{ action: SessionFocusRequest; at: number }> = [];
     for (const name of fs.readdirSync(commands)) {
       if (!/^[a-f0-9-]+\.json$/.test(name)) continue;
       this.safe(() => {
         const file = path.join(commands, name);
-        const action = JSON.parse(fs.readFileSync(file, "utf8")) as { type?: string };
+        const action = JSON.parse(fs.readFileSync(file, "utf8")) as SessionFocusRequest;
+        const at = Number.isFinite(action.requestedAt) ? action.requestedAt! : fs.statSync(file).mtimeMs;
         fs.unlinkSync(file);
-        if (action.type === "focus") void focusOriginatingWindow().then((result) => {
-          atomicWriteJson(path.join(this.root, "response.json"), { message: result.startsWith("failed") || result === "unavailable"
-            ? "无法切换窗口" : "", at: Date.now() });
-        }).catch((error) => this.report(error));
+        if (action.type === "focus") pending.push({ action, at });
       });
+    }
+    for (const { action } of pending.sort((a, b) => a.at - b.at)) {
+      const generation = ++this.focusGeneration;
+      this.focusQueue = this.focusQueue.then(async () => {
+        if (this.disposed || generation !== this.focusGeneration) return;
+        const result = await focusSession(action, {
+          getSession: (key) => this.sessions.get(key),
+          focusWindow: async () => {
+            const result = await focusOriginatingWindow();
+            if (result.startsWith("failed") || result === "unavailable") return false;
+            for (let delay = 0; delay < 1000 && !vscode.window.state.focused && generation === this.focusGeneration; delay += 50) {
+              await new Promise<void>((resolve) => setTimeout(resolve, 50));
+            }
+            return vscode.window.state.focused;
+          },
+          openSession: async (session) => {
+            try { return await openSession(session); } catch (error) { this.report(error); return false; }
+          },
+          isCurrentAndFocused: () => !this.disposed && generation === this.focusGeneration && vscode.window.state.focused,
+          acknowledge: (key) => atomicWriteJson(path.join(this.root, "read", `${key}.json`), { at: Date.now(), source: "session-opened" }),
+        });
+        if (generation !== this.focusGeneration || this.disposed) return;
+        this.publishModel();
+        atomicWriteJson(path.join(this.root, "response.json"), { message: result === "failed" ? "无法切换窗口"
+          : result === "window-only" && action.key ? "已返回窗口；未确认具体对话，保留待查看" : "", at: Date.now() });
+      }).catch((error) => this.report(error));
     }
   }
   private command(type: "show" | "hide"): PanelVisibilityRequest {

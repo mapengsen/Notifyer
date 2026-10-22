@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.14 - 2026-10-23
+
+### Changed / 调整
+
+- Floating-card clicks now carry the exact provider, session ID, turn ID and acknowledgement to the selected VS Code window, then use the provider's session selector instead of window activation alone.
+- 点击悬浮卡片会携带具体提供方、会话 ID、轮次及已查看标识，返回所选窗口后定位对应对话。
+- Confirmed selection acknowledges only the clicked completed result. Other chats in the same window, later turns, unsuccessful navigation and window-only focus stay unread. Rapid clicks use the latest request.
+- 确认选中后只移除所点击完成轮次的待查看；同窗口其他对话、后续新结果、跳转失败或只返回窗口时仍保留提醒，快速连续点击以最后一次为准。
+- Codex checks the active conversation editor URI. Claude uses its session-ID command and requires a selected Claude editor change; its sidebar/already-active surfaces retain manual review when identity cannot be confirmed. Manual checkmarks remain available.
+- Codex 核对活动会话编辑器 URI；Claude 使用带会话 ID 的打开命令并要求选中 Claude 编辑器发生变化，无法确认的侧边栏／原本已激活布局保留手动标记。
+
 ## 0.4.13 - 2026-10-22
 
 ### Fixed / 修复
