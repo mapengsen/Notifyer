@@ -68,6 +68,8 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 ### 3、Windows 桌面会话悬浮窗
 
+拖动顶部放置小窗，松开后自动保存位置；再次打开或重启 VS Code 都会恢复，包括放在副屏的位置。原屏幕断开或标题栏已经不可见时，会自动回到最近的可用屏幕，无需手动保存。
+
 ![Windows 悬浮窗，示例数据](image/floating-panel-preview.png)
 
 夜晚配色（示例数据）：
@@ -108,6 +110,11 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月22日（0.4.7）：
+
+1. 修复副屏及负坐标桌面上的位置恢复；保存的位置不可见时，回到最近的可用屏幕。
+2. 新增原生位置保存及恢复验证。
 
 ## 2026年10月22日（0.4.6）：
 

@@ -68,6 +68,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 ### 3. Windows floating session window
 
+Drag the header to position the panel; the location saves automatically when you release it. Reopening the panel or restarting VS Code restores that position, including on a secondary monitor. If that display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
+
 ![Windows floating session window with sample data](image/floating-panel-preview.png)
 
 Night colors (sample data):
@@ -108,6 +110,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.7)
+
+1. Restore the last panel position on secondary and negative-origin monitors; recover onto the nearest display when the saved position is no longer reachable.
+2. Validate position persistence and restoration through native checks.
 
 ## October 22, 2026 (0.4.6)
 

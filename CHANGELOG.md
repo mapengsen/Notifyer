@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.7 - 2026-10-22
+
+### Fixed / 修复
+
+- Restore the saved panel position on any connected monitor, including secondary screens and negative desktop coordinates, rather than clamping it to the primary monitor. If the saved header is no longer reachable, recover onto the nearest available display.
+- 恢复上次拖放的位置时支持副屏和负坐标桌面，不再强制限制到主屏；原屏幕断开或标题栏不可见时，回到最近的可用屏幕。
+- Added native position restoration and preference round-trip checks, with current coordinates available in the helper heartbeat for diagnostics.
+- 新增原生位置恢复、偏好文件保存读取验证，并在进程心跳中记录当前位置以便诊断。
+
 ## 0.4.6 - 2026-10-22
 
 ### Changed / 调整

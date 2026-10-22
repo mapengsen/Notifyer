@@ -9,7 +9,7 @@
 )
 
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
 
 function Read-TextShared([string]$File) {
   # Allow the extension host to atomically replace snapshots while WPF reads them.
@@ -31,6 +31,29 @@ function Write-Json([string]$File, $Value) {
   } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
 }
 function Now-Ms { return [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
+function Resolve-PanelPosition([double]$Left, [double]$Top, [double]$Width, $Areas) {
+  # Preserve the exact position whenever the header is reachable on any screen.
+  $header = [Windows.Rect]::new($Left, $Top, $Width, 48)
+  $closest = $null
+  $closestDistance = [double]::PositiveInfinity
+  foreach ($area in $Areas) {
+    $intersection = [Windows.Rect]::Intersect($header, $area)
+    if (-not $intersection.IsEmpty -and $intersection.Width -ge 64 -and $intersection.Height -ge 24) {
+      return [pscustomobject]@{ left = $Left; top = $Top }
+    }
+    $centerX = $Left + $Width / 2
+    $centerY = $Top + 24
+    $dx = $centerX - [Math]::Max($area.Left, [Math]::Min($centerX, $area.Right))
+    $dy = $centerY - [Math]::Max($area.Top, [Math]::Min($centerY, $area.Bottom))
+    $distance = $dx * $dx + $dy * $dy
+    if ($distance -lt $closestDistance) { $closest = $area; $closestDistance = $distance }
+  }
+  # If a display was removed, bring the panel back onto the closest display.
+  return [pscustomobject]@{
+    left = [Math]::Max($closest.Left, [Math]::Min($Left, $closest.Right - $Width))
+    top = [Math]::Max($closest.Top, [Math]::Min($Top, $closest.Bottom - 160))
+  }
+}
 
 $null = [IO.Directory]::CreateDirectory($StateRoot)
 $mutex = New-Object Threading.Mutex($false, ('Local\Notifyer.Panel.' + $InstanceKey))
@@ -71,14 +94,28 @@ try {
   }
 
   $workArea = [Windows.SystemParameters]::WorkArea
+  # Screen rectangles use device pixels; window coordinates use WPF DIPs.
+  $scaleX = [Windows.SystemParameters]::PrimaryScreenWidth / [Windows.Forms.Screen]::PrimaryScreen.Bounds.Width
+  $scaleY = [Windows.SystemParameters]::PrimaryScreenHeight / [Windows.Forms.Screen]::PrimaryScreen.Bounds.Height
+  $workAreas = @([Windows.Forms.Screen]::AllScreens | ForEach-Object {
+    [Windows.Rect]::new($_.WorkingArea.Left * $scaleX, $_.WorkingArea.Top * $scaleY, $_.WorkingArea.Width * $scaleX, $_.WorkingArea.Height * $scaleY)
+  })
   $script:window.Left = $workArea.Right - $script:window.Width - 24
   $script:window.Top = $workArea.Top + 80
   $preferencesPath = Join-Path $StateRoot 'preferences.json'
   $preferences = Read-Json $preferencesPath
   if ($preferences) {
-    # Clamp saved positions after display layout/resolution changes.
-    $script:window.Left = [Math]::Max($workArea.Left, [Math]::Min([double]$preferences.left, $workArea.Right - $script:window.Width))
-    $script:window.Top = [Math]::Max($workArea.Top, [Math]::Min([double]$preferences.top, $workArea.Bottom - 160))
+    try {
+      if ($null -ne $preferences.left -and $null -ne $preferences.top) {
+        $left = [double]$preferences.left
+        $top = [double]$preferences.top
+        if (-not [double]::IsNaN($left) -and -not [double]::IsInfinity($left) -and -not [double]::IsNaN($top) -and -not [double]::IsInfinity($top)) {
+          $position = Resolve-PanelPosition $left $top $script:window.Width $workAreas
+          $script:window.Left = $position.left
+          $script:window.Top = $position.top
+        }
+      }
+    } catch { } # Invalid saved coordinates leave the default position intact.
     $script:window.Topmost = [bool]$preferences.topmost
     $script:collapsed = [bool]$preferences.collapsed
     if ($preferences.theme -eq 'night') { $script:theme = 'night' }
@@ -92,7 +129,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.6'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.7'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top
     }
   }
   function Update-Chrome {
@@ -352,6 +389,23 @@ try {
   Refresh-Panel
 
   if ($SelfTest) {
+    $primaryArea = [Windows.Rect]::new(0, 0, 2560, 1392)
+    $secondaryArea = [Windows.Rect]::new(2560, 0, 1440, 2512)
+    $negativeArea = [Windows.Rect]::new(-1920, -200, 1920, 1080)
+    foreach ($point in @(@(500, 200), @(2584, 1212), @(-1800, -100))) {
+      $position = Resolve-PanelPosition $point[0] $point[1] 410 @($primaryArea, $secondaryArea, $negativeArea)
+      if ($position.left -ne $point[0] -or $position.top -ne $point[1]) { throw 'Positions on primary, secondary and negative-origin screens must be preserved exactly.' }
+    }
+    $recovered = Resolve-PanelPosition 3000 1800 410 @($primaryArea)
+    if ($recovered.left -lt 0 -or $recovered.left -gt 2150 -or $recovered.top -lt 0 -or $recovered.top -gt 1232) { throw 'A disconnected display must recover onto a visible screen.' }
+    $originalLeft = $script:window.Left; $originalTop = $script:window.Top
+    $script:window.Left = 2584; $script:window.Top = 1212
+    Save-Preferences
+    $savedPosition = Read-Json $preferencesPath
+    $restoredPosition = Resolve-PanelPosition $savedPosition.left $savedPosition.top 410 @($primaryArea, $secondaryArea)
+    if ($restoredPosition.left -ne 2584 -or $restoredPosition.top -ne 1212) { throw 'Saved coordinates must survive a disk round trip on a secondary screen.' }
+    $script:window.Left = $originalLeft; $script:window.Top = $originalTop
+    Save-Preferences
     if ($script:cards.Count -ne 2) { throw 'Panel must show only running and unread fixture rows.' }
     if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
     $dot = $script:cards[0].Child.Children[0].Children[0]
@@ -420,7 +474,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.6') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.7') { throw 'Panel heartbeat failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
