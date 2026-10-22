@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.10 - 2026-10-22
+
+### Changed / 调整
+
+- Set the default window size to 280 × 440 DIP and default theme to night, while preserving saved geometry and explicit day/night choices.
+- 默认大小调整为 280 × 440 DIP，默认夜晚配色，保留已保存的大小、位置及手动昼夜选择。
+- Project names and runtime now match the conversation title's font size and use red in both palettes.
+- 项目名和运行时间改为与会话标题相同字号，在昼夜配色下均以红色显示。
+
 ## 0.4.9 - 2026-10-22
 
 ### Changed / 调整

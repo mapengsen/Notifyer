@@ -81,7 +81,7 @@ try {
   $script:window = [Windows.Markup.XamlReader]::Load($reader)
   $reader.Close()
   $script:collapsed = $false
-  $script:theme = 'day'
+  $script:theme = 'night'
   $script:desktopEnabled = $false
   $script:lastModel = ''
   $script:lastControl = if ($StartHidden) { (Read-Json (Join-Path $StateRoot 'control.json')).id } else { '' }
@@ -107,7 +107,7 @@ try {
     ButtonForeground='#CFD8E6'; ButtonBackground='#243249'; PinBackground='#245547'
     NotificationOn='#245547'; NotificationOff='#573B43'; RunningBackground='#1A2D41'; RunningForeground='#83C9FF'
     UnreadBackground='#352F27'; UnreadForeground='#F2C685'; CardBackground='#1A273B'; CardBorder='#2C3C53'
-    UnreadBorder='#756044'; TextForeground='#ECF2FC'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
+    UnreadBorder='#756044'; TextForeground='#ECF2FC'; MetadataForeground='#FF6262'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
   }
 
   $workArea = [Windows.SystemParameters]::WorkArea
@@ -138,7 +138,7 @@ try {
     } catch { } # Invalid saved coordinates leave the default position intact.
     $script:window.Topmost = [bool]$preferences.topmost
     $script:collapsed = [bool]$preferences.collapsed
-    if ($preferences.theme -eq 'night') { $script:theme = 'night' }
+    if ($preferences.theme -in @('day','night')) { $script:theme = $preferences.theme }
   }
   if ($PreviewTheme) { $script:theme = $PreviewTheme }
   $notificationPolicyPath = Join-Path $StateRoot 'notification-policy.json'
@@ -186,7 +186,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.9'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.10'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -438,10 +438,10 @@ try {
       $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $metadata.ColumnDefinitions[1].Width = 'Auto'
       $detail = New-Object Windows.Controls.StackPanel
-      $ownerText = Text-Element $label (Theme-Color 'MutedForeground') 9
+      $ownerText = Text-Element $label (Theme-Color 'MetadataForeground') $heading.FontSize
       $ownerText.ToolTip = $label
       $null = $detail.Children.Add($ownerText)
-      $null = $detail.Children.Add((Text-Element $timeLabel (Theme-Color 'MutedForeground') 9))
+      $null = $detail.Children.Add((Text-Element $timeLabel (Theme-Color 'MetadataForeground') $heading.FontSize))
       $null = $metadata.Children.Add($detail)
       if ($unread) {
         $read = New-Object Windows.Controls.Button
@@ -472,10 +472,22 @@ try {
   Refresh-Panel
 
   if ($SelfTest) {
-    if ($script:window.Width -ne 205 -or $script:window.Height -ne 360) { throw 'Default geometry must be 205 x 360 DIP.' }
+    if ($script:window.Width -ne 280 -or $script:window.Height -ne 440) { throw 'Default geometry must be 280 x 440 DIP.' }
+    if ($script:theme -ne 'night' -or $controls.ThemeButton.Content -ne [string][char]0xE708) { throw 'The default theme must be night with a moon symbol.' }
+    function Assert-MetadataStyle {
+      foreach ($card in $script:cards) {
+        $heading = $card.Child.Children[1]
+        foreach ($line in $card.Child.Children[2].Children[0].Children) {
+          if ($line.FontSize -ne $heading.FontSize -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground')) { throw 'Project and runtime must match the title font size and use the red metadata color.' }
+        }
+      }
+    }
+    if ((Theme-Color 'MetadataForeground') -ne '#FFFF6262') { throw 'Night metadata must be red.' }
+    Assert-MetadataStyle
+    $controls.ThemeButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
     if ($script:window.FindName('Footer') -or $script:window.FindName('ConnectionText')) { throw 'The compact layout must omit persistent explanation text.' }
     if ((Compact-OwnerLabel 'DNAKit [SSH: test] · ssh-remote') -ne 'DNAKit [SSH: test]') { throw 'SSH implementation labels must not appear.' }
-    if ((Saved-Dimension $null 205 180 4000) -ne 205 -or (Saved-Dimension 'invalid' 205 180 4000) -ne 205) { throw 'Legacy or invalid geometry must use compact defaults.' }
+    if ((Saved-Dimension $null 280 180 4000) -ne 280 -or (Saved-Dimension 'invalid' 280 180 4000) -ne 280) { throw 'Legacy or invalid geometry must use the default size.' }
     $geometryLeft = $script:window.Left; $geometryTop = $script:window.Top
     foreach ($name in $resizeNames) { if ($controls[$name] -isnot [Windows.Controls.Primitives.Thumb]) { throw ('Missing resize handle: ' + $name) } }
     $resizeEvent = [Windows.Controls.Primitives.DragDeltaEventArgs]::new(40, 60)
@@ -485,17 +497,17 @@ try {
     $resizeDone.RoutedEvent = [Windows.Controls.Primitives.Thumb]::DragCompletedEvent
     $controls.ResizeSE.RaiseEvent($resizeDone)
     $savedGeometry = Read-Json $preferencesPath
-    if ($script:window.Width -ne 245 -or $script:window.Height -ne 420 -or $savedGeometry.width -ne 245 -or $savedGeometry.height -ne 420) { throw 'Corner resizing must persist both dimensions.' }
+    if ($script:window.Width -ne 320 -or $script:window.Height -ne 500 -or $savedGeometry.width -ne 320 -or $savedGeometry.height -ne 500) { throw 'Corner resizing must persist both dimensions.' }
     $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
-    if ((Read-Json $preferencesPath).height -ne 420 -or $script:window.Height -ne 104) { throw 'Collapsing must preserve the expanded height.' }
+    if ((Read-Json $preferencesPath).height -ne 500 -or $script:window.Height -ne 104) { throw 'Collapsing must preserve the expanded height.' }
     $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
-    if ($script:window.Height -ne 420) { throw 'Expanding must restore the resized height.' }
+    if ($script:window.Height -ne 500) { throw 'Expanding must restore the resized height.' }
     $rightEdge = $script:window.Left + $script:window.Width
     $bottomEdge = $script:window.Top + $script:window.Height
     Resize-Panel 'TopLeft' 10000 10000
     if ($script:window.Width -ne 180 -or $script:window.Height -ne 200 -or $script:window.Left + $script:window.Width -ne $rightEdge -or $script:window.Top + $script:window.Height -ne $bottomEdge) { throw 'Minimum-size constraints must preserve the opposite resize edge.' }
     $script:window.Left = $geometryLeft; $script:window.Top = $geometryTop
-    $script:window.Width = 205; $script:window.Height = 360; $script:expandedHeight = 360
+    $script:window.Width = 280; $script:window.Height = 440; $script:expandedHeight = 440
     Save-Preferences
     $primaryArea = [Windows.Rect]::new(0, 0, 2560, 1392)
     $secondaryArea = [Windows.Rect]::new(2560, 0, 1440, 2512)
@@ -535,7 +547,9 @@ try {
     if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 1) { throw 'Long-running completions must remain available for review.' }
     $boundary.status = 'running'; $boundary.unread = $false; $boundary.startedAt = $cutoff
     if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 1) { throw 'A fresh turn must be visible after an old turn was hidden.' }
-    if ($script:theme -ne 'day') { throw 'The default theme must be day.' }
+    if ($script:theme -ne 'day') { throw 'The day theme must remain selectable.' }
+    if ((Theme-Color 'MetadataForeground') -ne '#FFD02020') { throw 'Day metadata must also be red.' }
+    Assert-MetadataStyle
     if ($script:desktopEnabled) { throw 'Desktop notifications must default off, even with a legacy model.' }
     foreach ($key in @('TitleForeground','MutedForeground','ButtonForeground','RunningForeground','UnreadForeground','TextForeground')) {
       if ((Theme-Color $key) -ne '#FF000000') { throw ('Day text must be pure black: ' + $key) }
@@ -583,7 +597,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.9' -or $health.width -ne 205 -or $health.height -ne 360) { throw 'Panel heartbeat geometry failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.10' -or $health.width -ne 280 -or $health.height -ne 440) { throw 'Panel heartbeat geometry failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

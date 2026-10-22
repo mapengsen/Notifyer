@@ -27,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 . $Helper -StateRoot $Root -InstanceKey ([guid]::NewGuid().ToString('N').Substring(0,24)) -ValidateOnly -StartHidden
 try {
   if ($script:window.Width -ne 245 -or $script:window.Height -ne 420 -or $script:window.Left -ne 200 -or $script:window.Top -ne 200) { throw 'A new helper must restore saved size and position exactly.' }
+  if ($script:theme -ne 'day') { throw 'An explicit saved day theme must override the night default.' }
   [Console]::Out.WriteLine('geometry-restart=passed')
 } finally { $script:window.Close() }
 '@

@@ -23,7 +23,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 | Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
 | Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. Click Notifyer in the bottom-right VS Code status bar to show/hide it. |
 | Review workflow | Click a card to return to a matching window; mark a result reviewed to remove it. Review state survives restarts. |
-| Appearance and controls | Sun/moon theme icons, day by default, with pure black daytime text; desktop notifications off by default; pinning, dragging, collapse and hide. Preferences persist. |
+| Appearance and controls | Sun/moon theme icons, night by default; red project/runtime text matches the title size. Desktop notifications default off; resizing, pinning, dragging, collapse and hide persist. |
 | Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
 | Reliability and diagnostics | Silent historical baseline, completion deduplication across windows, helper recovery, test notification and diagnostic commands. |
 
@@ -70,13 +70,13 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
 
-The default width is 205 DIP, half the earlier width. Drag the header to move the panel and drag any edge or corner to resize it. Size and position save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
+The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Project names and runtime use the same font size as the conversation title, in red. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
 
-![Windows floating session window with sample data](image/floating-panel-preview.png)
+![Default night colors with sample data](image/floating-panel-night-preview.png)
 
-Night colors (sample data):
+Day colors (sample data):
 
-![Windows floating session window in night colors](image/floating-panel-night-preview.png)
+![Windows floating session window in day colors](image/floating-panel-preview.png)
 
 On Windows, one shared, draggable desktop window opens automatically; no extra desktop runtime is required. Install and enable this version of Notifyer in each VS Code window using the same VS Code profile. Remote SSH, WSL and container windows report sessions accessible to the local UI extension. The panel refreshes approximately every two seconds and shows each conversation's latest turn:
 
@@ -85,7 +85,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 
 The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
-Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
+Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime titles remain black and metadata red), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
 Click anywhere on a conversation card to activate its matching VS Code window, or focus it with Tab and press Enter/Space. Select the conversation within that window. When multiple windows match the same project, a window chooser appears because session logs do not reliably identify the originating window. Marking reviewed does not activate the window. Sessions without a known workspace path and child agents are excluded. The panel currently summarizes Codex / Claude conversations; terminal tasks continue using the existing notifications. The interface currently uses Chinese labels.
 
@@ -112,6 +112,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.10)
+
+1. Set the default size to 280 × 440 DIP and default theme to night; saved sizes, positions and explicit theme choices still persist.
+2. Enlarge project names and runtime to the conversation title's font size and display them in red in both themes.
 
 ## October 22, 2026 (0.4.9)
 
