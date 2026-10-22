@@ -31,6 +31,17 @@ function Write-Json([string]$File, $Value) {
   } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
 }
 function Now-Ms { return [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
+function Saved-Dimension($Value, [double]$Default, [double]$Minimum, [double]$Maximum) {
+  try {
+    if ($null -ne $Value) {
+      $number = [double]$Value
+      if (-not [double]::IsNaN($number) -and -not [double]::IsInfinity($number) -and $number -gt 0) {
+        return [Math]::Max($Minimum, [Math]::Min($number, $Maximum))
+      }
+    }
+  } catch { }
+  return $Default
+}
 function Resolve-PanelPosition([double]$Left, [double]$Top, [double]$Width, $Areas) {
   # Preserve the exact position whenever the header is reachable on any screen.
   $header = [Windows.Rect]::new($Left, $Top, $Width, 48)
@@ -60,6 +71,7 @@ $mutex = New-Object Threading.Mutex($false, ('Local\Notifyer.Panel.' + $Instance
 $ownsMutex = $false
 $script:window = $null
 $script:timer = $null
+$script:geometryTimer = $null
 try {
   try { $ownsMutex = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $ownsMutex = $true }
   if (-not $ownsMutex) { [Console]::Out.WriteLine('instance=already-running'); return }
@@ -79,13 +91,16 @@ try {
   $script:cards = @()
   $script:runningCount = 0
   $script:unreadCount = 0
+  $script:rememberGeometry = $false
+  $script:geometryCollapsed = $null
   $controls = @{}
-  foreach ($name in @('Header','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionText','SessionScroll','SessionList','Footer')) {
+  $resizeNames = @('ResizeN','ResizeS','ResizeW','ResizeE','ResizeNW','ResizeNE','ResizeSW','ResizeSE')
+  foreach ($name in (@('Header','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionDot','SessionScroll','SessionList') + $resizeNames)) {
     $controls[$name] = $script:window.FindName($name)
   }
   $dayPalette = @{}
   foreach ($key in @($script:window.Resources.Keys)) {
-    if ($key -is [string]) { $dayPalette[$key] = $script:window.Resources[$key].ToString() }
+    if ($key -is [string] -and $script:window.Resources[$key] -is [Windows.Media.Brush]) { $dayPalette[$key] = $script:window.Resources[$key].ToString() }
   }
   $nightPalette = @{
     PanelBackground='#111C2D'; PanelBorder='#35445B'; TitleForeground='#F1F6FF'; MutedForeground='#8798B1'
@@ -106,6 +121,9 @@ try {
   $script:window.Top = $workArea.Top + 80
   $preferencesPath = Join-Path $StateRoot 'preferences.json'
   $preferences = Read-Json $preferencesPath
+  $script:window.Width = Saved-Dimension $preferences.width $script:window.Width $script:window.MinWidth ([Windows.SystemParameters]::VirtualScreenWidth)
+  $script:window.Height = Saved-Dimension $preferences.height $script:window.Height 200 ([Windows.SystemParameters]::VirtualScreenHeight)
+  $script:expandedHeight = $script:window.Height
   if ($preferences) {
     try {
       if ($null -ne $preferences.left -and $null -ne $preferences.top) {
@@ -127,15 +145,57 @@ try {
   $notificationPolicy = Read-Json $notificationPolicyPath
   if ($notificationPolicy) { $script:desktopEnabled = ($notificationPolicy.desktopEnabled -is [bool]) -and $notificationPolicy.desktopEnabled }
   function Save-Preferences {
-    Write-Json $preferencesPath @{ left = $script:window.Left; top = $script:window.Top; topmost = $script:window.Topmost; collapsed = $script:collapsed; theme = $script:theme }
+    if ($script:geometryTimer) { $script:geometryTimer.Stop() }
+    Write-Json $preferencesPath @{ left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; topmost = $script:window.Topmost; collapsed = $script:collapsed; theme = $script:theme }
+  }
+  function Set-PanelStatus([string]$Text) { $script:window.ToolTip = $Text }
+  function Compact-OwnerLabel([string]$Label) { return ($Label -replace '(?:\s*·\s*|^)ssh-remote\b', '').Trim() }
+  function Resize-Panel([string]$Edges, [double]$Horizontal, [double]$Vertical) {
+    $oldWidth = $script:window.Width
+    $oldHeight = $script:window.Height
+    $width = $oldWidth
+    $height = $oldHeight
+    if ($Edges.Contains('Left')) { $width -= $Horizontal }
+    if ($Edges.Contains('Right')) { $width += $Horizontal }
+    if (-not $script:collapsed) {
+      if ($Edges.Contains('Top')) { $height -= $Vertical }
+      if ($Edges.Contains('Bottom')) { $height += $Vertical }
+    }
+    $width = [Math]::Max($script:window.MinWidth, [Math]::Min($width, $script:window.MaxWidth))
+    $height = [Math]::Max($script:window.MinHeight, [Math]::Min($height, $script:window.MaxHeight))
+    if ($Edges.Contains('Left')) { $script:window.Left += $oldWidth - $width }
+    if ($Edges.Contains('Top')) { $script:window.Top += $oldHeight - $height }
+    $script:window.Width = $width
+    $script:window.Height = $height
+    if (-not $script:collapsed) { $script:expandedHeight = $height }
+  }
+  $script:geometryTimer = New-Object Windows.Threading.DispatcherTimer
+  $script:geometryTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+  $script:geometryTimer.Add_Tick({ $script:geometryTimer.Stop(); try { Save-Preferences } catch { } })
+  function Queue-GeometrySave {
+    if ($script:rememberGeometry) { $script:geometryTimer.Stop(); $script:geometryTimer.Start() }
+  }
+  $script:window.Add_LocationChanged({ Queue-GeometrySave })
+  $script:window.Add_SizeChanged({
+    if (-not $script:collapsed -and $script:window.Height -ge 200) { $script:expandedHeight = $script:window.Height }
+    Queue-GeometrySave
+  })
+  foreach ($name in $resizeNames) {
+    $controls[$name].Add_DragDelta({ param($sender, $event) Resize-Panel $sender.Tag $event.HorizontalChange $event.VerticalChange; $event.Handled = $true })
+    $controls[$name].Add_DragCompleted({ Save-Preferences; Write-Heartbeat })
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.8'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.9'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
     $controls.Body.Visibility = if ($script:collapsed) { 'Collapsed' } else { 'Visible' }
+    if ($script:geometryCollapsed -ne $script:collapsed) {
+      if ($script:collapsed) { $script:window.MinHeight = 104; $script:window.Height = 104 }
+      else { $script:window.MinHeight = 200; $script:window.Height = $script:expandedHeight }
+      $script:geometryCollapsed = $script:collapsed
+    }
     $controls.CollapseButton.Content = if ($script:collapsed) { '+' } else { '−' }
     $controls.PinButton.Background = if ($script:window.Topmost) { $script:window.Resources['PinBackground'] } else { $script:window.Resources['ButtonBackground'] }
     $controls.ThemeButton.Content = if ($script:theme -eq 'night') { [string][char]0xE708 } else { [string][char]0xE706 }
@@ -173,7 +233,6 @@ try {
     $script:desktopEnabled = -not $script:desktopEnabled
     Write-Json $notificationPolicyPath @{ desktopEnabled = $script:desktopEnabled; updatedAt = (Now-Ms) }
     Update-Chrome
-    $controls.Footer.Text = if ($script:desktopEnabled) { '桌面通知已开启' } else { '桌面通知已关闭 · 待查看结果仍会保留' }
   })
 
   function Text-Element([string]$Text, [string]$Color, [double]$Size = 12) {
@@ -181,7 +240,8 @@ try {
     $textBlock.Text = $Text
     $textBlock.Foreground = $Color
     $textBlock.FontSize = $Size
-    $textBlock.TextWrapping = 'Wrap'
+    $textBlock.TextWrapping = 'NoWrap'
+    $textBlock.TextTrimming = 'CharacterEllipsis'
     return $textBlock
   }
   function Set-SpinnerMotion($Indicator, [bool]$Active) {
@@ -247,21 +307,21 @@ try {
   }
   function Request-Focus($Owner) {
     if (-not $Owner -or -not $Owner.online -or [string]$Owner.windowId -notmatch '^[a-f0-9-]+$') {
-      $controls.Footer.Text = '该窗口已关闭或断连，请先打开对应的 VS Code 项目。'
+      Set-PanelStatus '窗口未连接'
       return
     }
     $commandFile = Join-Path $StateRoot ('commands\' + $Owner.windowId + '\' + [guid]::NewGuid().ToString() + '.json')
     Write-Json $commandFile @{ type = 'focus' }
-    $controls.Footer.Text = '正在返回对应窗口… 对话需在窗口内选择。'
+    Set-PanelStatus ''
   }
   function Activate-Card($Card, [bool]$ShowMenu = $true) {
-    if ($Card.Tag.stale) { $controls.Footer.Text = '窗口已断连，请先打开对应的 VS Code 项目。'; return }
+    if ($Card.Tag.stale) { Set-PanelStatus '窗口未连接'; return }
     $owners = @($Card.Tag.owners | Where-Object { $_.online })
     if ($owners.Count -le 1) { Request-Focus ($owners | Select-Object -First 1); return }
     $menu = New-Object Windows.Controls.ContextMenu
     foreach ($owner in $owners) {
       $item = New-Object Windows.Controls.MenuItem
-      $item.Header = $owner.label + ' · ' + ([string]$owner.windowId).Substring(0, 4)
+      $item.Header = (Compact-OwnerLabel $owner.label) + ' · ' + ([string]$owner.windowId).Substring(0, 4)
       $item.Tag = $owner
       $item.Add_Click({ param($sender, $event) Request-Focus $sender.Tag })
       $null = $menu.Items.Add($item)
@@ -281,7 +341,8 @@ try {
     $response = Read-Json (Join-Path $StateRoot 'response.json')
     if ($response -and [double]$response.at -gt $script:lastResponse) {
       $script:lastResponse = [double]$response.at
-      $controls.Footer.Text = [string]$response.message
+      if ([string]$response.message -match '未能|无法|failed') { Set-PanelStatus '无法切换窗口' }
+      else { Set-PanelStatus '' }
     }
     $modelFile = Join-Path $StateRoot 'model.json'
     try { $json = Read-TextShared $modelFile } catch { return }
@@ -306,7 +367,8 @@ try {
     $controls.UnreadCount.Text = '待查看  ' + $pending
     $script:runningCount = $running
     $script:unreadCount = $pending
-    $controls.ConnectionText.Text = if ($stale) { 'VS Code 已关闭或连接中断' } else { '所有已连接窗口 · 仅运行中与待查看' }
+    $controls.ConnectionDot.Fill = if ($stale) { '#88909A' } else { Theme-Color 'Accent' }
+    $controls.ConnectionDot.ToolTip = if ($stale) { '已断开' } else { '已连接' }
     if ($signature -eq $script:lastModel) { return }
     $script:lastModel = $signature
     $scrollOffset = $controls.SessionScroll.VerticalOffset
@@ -318,8 +380,8 @@ try {
       $status = $visible.status
       $statusLabel = switch ($status) {
         'running' { '运行中' }
-        'completed' { if ($unread) { '已完成 · 待查看' } else { '已完成 · 已查看' } }
-        'failed' { if ($unread) { '发生错误 · 待查看' } else { '发生错误 · 已查看' } }
+        'completed' { '待查看' }
+        'failed' { '出错 · 待查看' }
         default { '状态待确认' }
       }
       $color = if ($unread) { Theme-Color 'UnreadForeground' } else { Theme-Color 'RunningForeground' }
@@ -328,8 +390,8 @@ try {
       $card.BorderBrush = if ($unread) { Theme-Color 'UnreadBorder' } else { Theme-Color 'CardBorder' }
       $card.BorderThickness = '1'
       $card.CornerRadius = '7'
-      $card.Padding = '12,10'
-      $card.Margin = '0,0,0,8'
+      $card.Padding = '8,8'
+      $card.Margin = '0,0,0,6'
       $card.Cursor = 'Hand'
       $card.Focusable = $true
       $card.ToolTip = '点击切换到对应的 VS Code 窗口'
@@ -351,43 +413,57 @@ try {
       $stack = New-Object Windows.Controls.StackPanel
       $card.Child = $stack
       $provider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
-      $statusLine = New-Object Windows.Controls.StackPanel
-      $statusLine.Orientation = 'Horizontal'
+      $statusLine = New-Object Windows.Controls.Grid
+      $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+      $statusLine.ColumnDefinitions[0].Width = 'Auto'
+      $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $null = $statusLine.Children.Add((Status-Indicator ($status -eq 'running')))
-      $null = $statusLine.Children.Add((Text-Element ($provider + '  /  ' + $statusLabel) $color 11))
+      $statusText = Text-Element ($provider + ' · ' + $statusLabel) $color 10
+      [Windows.Controls.Grid]::SetColumn($statusText, 1)
+      $null = $statusLine.Children.Add($statusText)
       $null = $stack.Children.Add($statusLine)
       $title = if ($row.title) { [string]$row.title } else { '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
-      $heading = Text-Element $title (Theme-Color 'TextForeground') 13
-      $heading.Margin = '0,6,0,5'
-      $heading.MaxHeight = 42
-      $heading.TextTrimming = 'CharacterEllipsis'
+      $heading = Text-Element $title (Theme-Color 'TextForeground') 12
+      $heading.Margin = '0,5,0,5'
+      $heading.ToolTip = $title
       $null = $stack.Children.Add($heading)
       $owners = @($row.owners)
       $owner = $owners | Where-Object { $_.online } | Select-Object -First 1
-      $label = if ($owner) { [string]$owner.label } elseif ($owners.Count) { [string]$owners[0].label + ' · 已断连' } else { '来源窗口未知' }
+      $label = if ($owner) { Compact-OwnerLabel $owner.label } elseif ($owners.Count) { (Compact-OwnerLabel $owners[0].label) + ' · 已断连' } else { '未知窗口' }
       $timeLabel = if ($status -eq 'running') {
-        '已运行 ' + [Math]::Max(0, [Math]::Floor(($now - [double]$row.startedAt) / 60000)) + ' 分钟'
+        '运行 ' + [Math]::Max(0, [Math]::Floor(($now - [double]$row.startedAt) / 60000)) + ' 分钟'
       } else { [DateTimeOffset]::FromUnixTimeMilliseconds([long]$row.updatedAt).ToLocalTime().ToString('MM-dd HH:mm') }
-      $detail = Text-Element ($label + '  ·  ' + $timeLabel) (Theme-Color 'MutedForeground') 10
-      $detail.ToolTip = [string]$row.cwd
-      $null = $stack.Children.Add($detail)
-      $actions = New-Object Windows.Controls.StackPanel
-      $actions.Orientation = 'Horizontal'
-      $actions.Margin = '0,9,0,0'
+      $metadata = New-Object Windows.Controls.Grid
+      $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+      $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+      $metadata.ColumnDefinitions[1].Width = 'Auto'
+      $detail = New-Object Windows.Controls.StackPanel
+      $ownerText = Text-Element $label (Theme-Color 'MutedForeground') 9
+      $ownerText.ToolTip = $label
+      $null = $detail.Children.Add($ownerText)
+      $null = $detail.Children.Add((Text-Element $timeLabel (Theme-Color 'MutedForeground') 9))
+      $null = $metadata.Children.Add($detail)
       if ($unread) {
         $read = New-Object Windows.Controls.Button
-        $read.Content = '标记已查看'
-        $read.FontSize = 10
+        $read.Content = [string][char]0xE73E
+        $read.FontFamily = 'Segoe MDL2 Assets'
+        $read.FontSize = 11
+        $read.Width = 24; $read.Height = 24
+        $read.Margin = '4,0,0,0'; $read.Padding = '4'
+        $read.ToolTip = '标记已查看'
+        $read.SetValue([Windows.Automation.AutomationProperties]::NameProperty, '标记已查看')
+        [Windows.Controls.Grid]::SetColumn($read, 1)
         $read.Tag = $row
         $read.Add_Click({ param($sender, $event) $event.Handled = $true; Mark-Read $sender.Tag; Refresh-Panel })
-        $null = $actions.Children.Add($read)
-        $null = $stack.Children.Add($actions)
+        $null = $metadata.Children.Add($read)
+        $card.Tag.readButton = $read
       }
+      $null = $stack.Children.Add($metadata)
       $null = $controls.SessionList.Children.Add($card)
       $script:cards += $card
     }
     if ($controls.SessionList.Children.Count -eq 0) {
-      $empty = Text-Element "当前没有运行中或待查看的会话。" (Theme-Color 'MutedForeground') 12
+      $empty = Text-Element '暂无会话' (Theme-Color 'MutedForeground') 11
       $empty.Margin = '4,18,4,18'
       $null = $controls.SessionList.Children.Add($empty)
     }
@@ -396,6 +472,31 @@ try {
   Refresh-Panel
 
   if ($SelfTest) {
+    if ($script:window.Width -ne 205 -or $script:window.Height -ne 360) { throw 'Default geometry must be 205 x 360 DIP.' }
+    if ($script:window.FindName('Footer') -or $script:window.FindName('ConnectionText')) { throw 'The compact layout must omit persistent explanation text.' }
+    if ((Compact-OwnerLabel 'DNAKit [SSH: test] · ssh-remote') -ne 'DNAKit [SSH: test]') { throw 'SSH implementation labels must not appear.' }
+    if ((Saved-Dimension $null 205 180 4000) -ne 205 -or (Saved-Dimension 'invalid' 205 180 4000) -ne 205) { throw 'Legacy or invalid geometry must use compact defaults.' }
+    $geometryLeft = $script:window.Left; $geometryTop = $script:window.Top
+    foreach ($name in $resizeNames) { if ($controls[$name] -isnot [Windows.Controls.Primitives.Thumb]) { throw ('Missing resize handle: ' + $name) } }
+    $resizeEvent = [Windows.Controls.Primitives.DragDeltaEventArgs]::new(40, 60)
+    $resizeEvent.RoutedEvent = [Windows.Controls.Primitives.Thumb]::DragDeltaEvent
+    $controls.ResizeSE.RaiseEvent($resizeEvent)
+    $resizeDone = [Windows.Controls.Primitives.DragCompletedEventArgs]::new(40, 60, $false)
+    $resizeDone.RoutedEvent = [Windows.Controls.Primitives.Thumb]::DragCompletedEvent
+    $controls.ResizeSE.RaiseEvent($resizeDone)
+    $savedGeometry = Read-Json $preferencesPath
+    if ($script:window.Width -ne 245 -or $script:window.Height -ne 420 -or $savedGeometry.width -ne 245 -or $savedGeometry.height -ne 420) { throw 'Corner resizing must persist both dimensions.' }
+    $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ((Read-Json $preferencesPath).height -ne 420 -or $script:window.Height -ne 104) { throw 'Collapsing must preserve the expanded height.' }
+    $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if ($script:window.Height -ne 420) { throw 'Expanding must restore the resized height.' }
+    $rightEdge = $script:window.Left + $script:window.Width
+    $bottomEdge = $script:window.Top + $script:window.Height
+    Resize-Panel 'TopLeft' 10000 10000
+    if ($script:window.Width -ne 180 -or $script:window.Height -ne 200 -or $script:window.Left + $script:window.Width -ne $rightEdge -or $script:window.Top + $script:window.Height -ne $bottomEdge) { throw 'Minimum-size constraints must preserve the opposite resize edge.' }
+    $script:window.Left = $geometryLeft; $script:window.Top = $geometryTop
+    $script:window.Width = 205; $script:window.Height = 360; $script:expandedHeight = 360
+    Save-Preferences
     $primaryArea = [Windows.Rect]::new(0, 0, 2560, 1392)
     $secondaryArea = [Windows.Rect]::new(2560, 0, 1440, 2512)
     $negativeArea = [Windows.Rect]::new(-1920, -200, 1920, 1080)
@@ -470,8 +571,7 @@ try {
     if ($firstCard.ContextMenu.Items.Count -ne 2) { throw 'Matching-window chooser failed' }
     $firstCard.ContextMenu.Items[1].RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.MenuItem]::ClickEvent)))
     if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot 'commands\eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') -Filter '*.json').Count -ne 1) { throw 'Chosen window must receive focus IPC' }
-    $firstActions = $script:cards[0].Child.Children[$script:cards[0].Child.Children.Count - 1]
-    $firstActions.Children[0].RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
+    $script:cards[0].Tag.readButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     if (-not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')))) { throw 'Read acknowledgement failed' }
     if ($script:cards.Count -ne 1 -or $controls.UnreadCount.Text -ne '待查看  0') { throw 'Reviewed results must disappear immediately.' }
     if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot ('commands\' + $pendingRow.owners[0].windowId)) -Filter '*.json').Count -ne $focusFiles.Count) { throw 'Marking read must not activate a window.' }
@@ -483,7 +583,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.8') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.9' -or $health.width -ne 205 -or $health.height -ne 360) { throw 'Panel heartbeat geometry failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
@@ -493,16 +593,18 @@ try {
     if ((Read-Json $probe).revision -ne 2) { throw 'Atomic replacement during shared read failed' }
     $script:lastModel = ''
     Refresh-Panel
-    $controls.Footer.Text = '点击会话切换窗口 · 查看结果后标记已查看'
+    foreach ($card in $script:cards) {
+      if ($card.Child.Children[1].TextWrapping -ne 'NoWrap' -or $card.Child.Children[1].TextTrimming -ne 'CharacterEllipsis') { throw 'Conversation titles must be one line with ellipsis.' }
+    }
     [Console]::Out.WriteLine('self-test=passed;cards=' + $script:cards.Count)
   }
   if ($PreviewPath) {
     # Render the actual WPF controls offscreen, without opening a desktop window.
     $content = $script:window.Content
-    $content.Measure((New-Object Windows.Size 410, 1000))
-    $content.Arrange((New-Object Windows.Rect 0, 0, 410, $content.DesiredSize.Height))
+    $content.Measure((New-Object Windows.Size $script:window.Width, $script:window.Height))
+    $content.Arrange((New-Object Windows.Rect 0, 0, $script:window.Width, $script:window.Height))
     $content.UpdateLayout()
-    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap 410, ([int][Math]::Ceiling($content.ActualHeight)), 96, 96, ([Windows.Media.PixelFormats]::Pbgra32)
+    $bitmap = New-Object Windows.Media.Imaging.RenderTargetBitmap ([int][Math]::Ceiling($content.ActualWidth)), ([int][Math]::Ceiling($content.ActualHeight)), 96, 96, ([Windows.Media.PixelFormats]::Pbgra32)
     $bitmap.Render($content)
     $encoder = New-Object Windows.Media.Imaging.PngBitmapEncoder
     $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
@@ -521,19 +623,22 @@ try {
       # No orphan helper after all VS Code extension hosts have stopped.
       if ((Now-Ms) - $script:lastLiveAt -gt 60000) { $script:window.Close() }
     } catch {
-      $controls.Footer.Text = '状态读取暂时失败，正在重试。'
+      Set-PanelStatus '读取失败，重试中'
     }
   })
   $script:window.Add_Closed({ $script:timer.Stop(); Save-Preferences; [Windows.Threading.Dispatcher]::CurrentDispatcher.InvokeShutdown() })
   $script:timer.Start()
+  $script:rememberGeometry = $true
   if ($script:requestedVisible) { $script:window.Show() }
   Write-Heartbeat
+  try { Save-Preferences } catch { Set-PanelStatus '设置保存失败' }
   # Unlike ShowDialog, a dispatcher loop continues while the window is hidden.
   [Windows.Threading.Dispatcher]::Run()
 } catch {
   try { [IO.File]::WriteAllText((Join-Path $StateRoot 'panel-error.log'), ($_ | Out-String)) } catch {}
   throw
 } finally {
+  if ($script:geometryTimer) { $script:geometryTimer.Stop() }
   if ($script:timer) { $script:timer.Stop() }
   if ($ownsMutex) {
     $heartbeatFile = Join-Path $StateRoot 'panel-heartbeat.json'

@@ -70,7 +70,7 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
 
-Drag the header to position the panel; the location saves automatically when you release it. Reopening the panel or restarting VS Code restores that position, including on a secondary monitor. If that display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
+The default width is 205 DIP, half the earlier width. Drag the header to move the panel and drag any edge or corner to resize it. Size and position save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
 
 ![Windows floating session window with sample data](image/floating-panel-preview.png)
 
@@ -81,9 +81,9 @@ Night colors (sample data):
 On Windows, one shared, draggable desktop window opens automatically; no extra desktop runtime is required. Install and enable this version of Notifyer in each VS Code window using the same VS Code profile. Remote SSH, WSL and container windows report sessions accessible to the local UI extension. The panel refreshes approximately every two seconds and shows each conversation's latest turn:
 
 - **Running** with a continuously rotating indicator and elapsed time. Turns exceeding 500 minutes are hidden and excluded from the running count.
-- **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Returning to a window never clears this state. Use **标记已查看** (mark reviewed); acknowledgements synchronize across windows and survive restarts.
+- **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Returning to a window never clears this state. Click the **✓** button (mark reviewed); acknowledgements synchronize across windows and survive restarts.
 
-The list opens at a fixed height of approximately three conversation cards. Fewer cards leave empty space; additional cards scroll within the list. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
+The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
 Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
@@ -112,6 +112,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.9)
+
+1. Halve the default panel width to 205 DIP, arrange header controls compactly, and use one-line conversation titles with ellipses.
+2. Remove persistent connection/focus explanation rows and redundant SSH environment labels; use a compact checkmark for marking reviewed.
+3. Add resizing from every edge and corner, with persistent size and position across reopening, restarting and collapse/expand.
 
 ## October 22, 2026 (0.4.8)
 

@@ -18,6 +18,26 @@ $instanceKey = [guid]::NewGuid().ToString('N').Substring(0, 24)
 & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $scriptFile -StateRoot $OutputDirectory -InstanceKey $instanceKey -SelfTest -PreviewPath $preview
 if ($LASTEXITCODE -ne 0) { throw 'WPF validation failed' }
 if (-not (Test-Path -LiteralPath $preview)) { throw 'WPF preview missing' }
+$preferencesFile = Join-Path $OutputDirectory 'preferences.json'
+$originalPreferences = [IO.File]::ReadAllText($preferencesFile)
+$restoreScript = Join-Path $OutputDirectory 'check-restored-geometry.ps1'
+$restoreSource = @'
+param([string]$Helper, [string]$Root)
+$ErrorActionPreference = 'Stop'
+. $Helper -StateRoot $Root -InstanceKey ([guid]::NewGuid().ToString('N').Substring(0,24)) -ValidateOnly -StartHidden
+try {
+  if ($script:window.Width -ne 245 -or $script:window.Height -ne 420 -or $script:window.Left -ne 200 -or $script:window.Top -ne 200) { throw 'A new helper must restore saved size and position exactly.' }
+  [Console]::Out.WriteLine('geometry-restart=passed')
+} finally { $script:window.Close() }
+'@
+[IO.File]::WriteAllText($restoreScript, $restoreSource, $encoding)
+try {
+  $saved = $originalPreferences | ConvertFrom-Json
+  $saved.width = 245; $saved.height = 420; $saved.left = 200; $saved.top = 200
+  [IO.File]::WriteAllText($preferencesFile, ($saved | ConvertTo-Json), $encoding)
+  & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $restoreScript -Helper $scriptFile -Root $OutputDirectory
+  if ($LASTEXITCODE -ne 0) { throw 'Geometry restoration failed' }
+} finally { [IO.File]::WriteAllText($preferencesFile, $originalPreferences, $encoding) }
 $nightPreview = Join-Path $OutputDirectory 'floating-panel-night-preview.png'
 & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $scriptFile -StateRoot $OutputDirectory -InstanceKey $instanceKey -PreviewPath $nightPreview -PreviewTheme night
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $nightPreview)) { throw 'Night theme preview missing' }

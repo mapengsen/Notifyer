@@ -287,6 +287,12 @@ test("same session ids on different remote hosts stay separate", () => {
   assert.equal(aggregateSessions([snapshot("a", a), snapshot("b", b)], () => false, now).length, 2);
 });
 
+test("remote window labels retain the project and SSH host without the ssh-remote implementation name", () => {
+  const item = applyActivity(undefined, activity());
+  const row = aggregateSessions([snapshot("a", item, { project: "DNAKit [SSH: test]", environment: "ssh-remote" })], () => false, now)[0];
+  assert.equal(row.owners[0].label, "DNAKit [SSH: test]");
+});
+
 test("closed windows, stale heartbeats and quiet tasks become unknown", () => {
   const item = applyActivity(undefined, activity());
   for (const overrides of [{ closed: true }, { heartbeat: now - 16000 }]) {

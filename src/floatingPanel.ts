@@ -173,7 +173,7 @@ export class FloatingPanel implements vscode.Disposable {
         fs.unlinkSync(file);
         if (action.type === "focus") void focusOriginatingWindow().then((result) => {
           atomicWriteJson(path.join(this.root, "response.json"), { message: result.startsWith("failed") || result === "unavailable"
-            ? "未能激活窗口，请手动切换到对应项目。" : "已请求返回对应窗口；查看结果后可标记已查看。", at: Date.now() });
+            ? "无法切换窗口" : "", at: Date.now() });
         }).catch((error) => this.report(error));
       });
     }

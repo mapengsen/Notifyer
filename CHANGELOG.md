@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.9 - 2026-10-22
+
+### Changed / 调整
+
+- Halved the default panel width to 205 DIP with compact header controls and one-line ellipsized titles. Removed persistent connection/focus explanations and redundant SSH environment labels; marking reviewed uses a compact checkmark button.
+- 默认宽度减半至 205 DIP，顶部控件紧凑排列，标题单行省略；移除常驻连接／跳转说明及重复的 SSH 环境标签，以勾选按钮标记已查看。
+- Added edge/corner resizing and automatic persistence of width, expanded height and position. Collapsing preserves the expanded geometry; legacy preferences adopt compact dimensions while retaining the saved location.
+- 支持拖动四边和四角缩放，自动保存宽度、展开高度及位置；折叠保留展开尺寸，旧偏好采用紧凑默认大小并保留位置。
+- Native checks cover resize gestures, minimum-size anchoring, collapse/expand, one-line trimming and exact size/position restoration in a fresh helper process.
+- 原生验证覆盖拖动缩放、最小尺寸锚点、折叠展开、单行省略及新进程恢复相同大小和位置。
+
 ## 0.4.8 - 2026-10-22
 
 ### Fixed / 修复

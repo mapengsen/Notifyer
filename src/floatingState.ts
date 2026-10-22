@@ -91,7 +91,8 @@ export function aggregateSessions(
     const online = !snapshot.closed && now - snapshot.heartbeat < 15_000;
     for (const session of snapshot.sessions) {
       const old = grouped.get(session.key);
-      const owner = { windowId: snapshot.windowId, label: `${snapshot.project} · ${snapshot.environment}`, online };
+      const owner = { windowId: snapshot.windowId,
+        label: snapshot.environment === "ssh-remote" ? snapshot.project : `${snapshot.project} · ${snapshot.environment}`, online };
       if (!old) grouped.set(session.key, { session, owners: [owner], online });
       else {
         old.owners.push(owner);
