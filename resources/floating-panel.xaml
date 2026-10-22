@@ -92,7 +92,7 @@
       </Grid>
       <StackPanel x:Name="Body">
         <TextBlock x:Name="ConnectionText" Text="正在连接 VS Code…" Foreground="{DynamicResource MutedForeground}" FontSize="10" Margin="0,8,0,8"/>
-        <ScrollViewer x:Name="SessionScroll" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="SessionScroll" Height="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="SessionList"/>
         </ScrollViewer>
         <TextBlock x:Name="Footer" Text="点击会话切换窗口 · 查看结果后标记已查看" Foreground="{DynamicResource MutedForeground}" FontSize="10"

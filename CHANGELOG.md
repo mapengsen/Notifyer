@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.6 - 2026-10-22
+
+### Changed / 调整
+
+- The conversation list now opens at a fixed height of approximately three cards, preserving empty space for fewer conversations and scrolling for additional ones.
+- 中间会话列表默认固定为约 3 张卡片的高度，少量会话保留空白，更多会话滚动查看。
+
 ## 0.4.5 - 2026-10-22
 
 ### Changed / 调整

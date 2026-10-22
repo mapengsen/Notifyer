@@ -79,7 +79,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 - **Running** with a continuously rotating indicator and elapsed time. Turns exceeding 500 minutes are hidden and excluded from the running count.
 - **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Returning to a window never clears this state. Use **标记已查看** (mark reviewed); acknowledgements synchronize across windows and survive restarts.
 
-Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
+The list opens at a fixed height of approximately three conversation cards. Fewer cards leave empty space; additional cards scroll within the list. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
 Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
@@ -108,6 +108,10 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.6)
+
+1. Keep the conversation list at a fixed height of approximately three cards, with scrolling for additional conversations.
 
 ## October 22, 2026 (0.4.5)
 

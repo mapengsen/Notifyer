@@ -92,7 +92,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.5'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.6'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
     }
   }
   function Update-Chrome {
@@ -420,7 +420,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.5') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.6') { throw 'Panel heartbeat failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
