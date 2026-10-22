@@ -153,6 +153,10 @@ try {
   }
   function Set-PanelStatus([string]$Text) { $script:window.ToolTip = $Text }
   function Compact-OwnerLabel([string]$Label) { return ($Label -replace '(?:\s*·\s*|^)ssh-remote\b', '').Trim() }
+  function Project-Name([string]$Label) {
+    $project = $Label -replace '\s+·\s*(?:本地|ssh-remote|wsl|dev-container|attached-container|codespaces)\s*$', ''
+    return ($project -replace '\s+\[(?:SSH|WSL|Dev Container|Container|Codespaces):[^\]]*\]\s*$', '').Trim()
+  }
   function Resize-Panel([string]$Edges, [double]$Horizontal, [double]$Vertical) {
     $oldWidth = $script:window.Width
     $oldHeight = $script:window.Height
@@ -189,7 +193,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.11'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.12'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -449,10 +453,7 @@ try {
       $null = $stack.Children.Add($heading)
       $owners = @($row.owners)
       $owner = $owners | Where-Object { $_.online } | Select-Object -First 1
-      $label = if ($owner) { Compact-OwnerLabel $owner.label } elseif ($owners.Count) { (Compact-OwnerLabel $owners[0].label) + ' · 已断连' } else { '未知窗口' }
-      $timeLabel = if ($status -eq 'running') {
-        '运行 ' + [Math]::Max(0, [Math]::Floor(($now - [double]$row.startedAt) / 60000)) + ' 分钟'
-      } else { [DateTimeOffset]::FromUnixTimeMilliseconds([long]$row.updatedAt).ToLocalTime().ToString('MM-dd HH:mm') }
+      $label = if ($owner) { Project-Name $owner.label } elseif ($owners.Count) { Project-Name $owners[0].label } else { '未知项目' }
       $metadata = New-Object Windows.Controls.Grid
       $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
@@ -461,7 +462,6 @@ try {
       $ownerText = Text-Element $label (Theme-Color 'MetadataForeground') $heading.FontSize
       $ownerText.ToolTip = $label
       $null = $detail.Children.Add($ownerText)
-      $null = $detail.Children.Add((Text-Element $timeLabel (Theme-Color 'MetadataForeground') $heading.FontSize))
       $null = $metadata.Children.Add($detail)
       if ($unread) {
         $read = New-Object Windows.Controls.Button
@@ -498,10 +498,14 @@ try {
       foreach ($card in $script:cards) {
         $heading = $card.Child.Children[1]
         if ($heading.FontSize -ne $script:fontSize) { throw 'The selected font size must apply to conversation titles immediately.' }
+        if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Only the project name may appear below the conversation title.' }
         foreach ($line in $card.Child.Children[2].Children[0].Children) {
-          if ($line.FontSize -ne $heading.FontSize -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground')) { throw 'Project and runtime must match the title font size and use the red metadata color.' }
+          if ($line.FontSize -ne $heading.FontSize -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground')) { throw 'The project name must match the title font size and use the red metadata color.' }
         }
       }
+    }
+    foreach ($label in @('DNAKit [SSH: zxx-4090-1]', 'DNAKit [SSH: zxx-4090-1] · ssh-remote', 'DNAKit · 本地')) {
+      if ((Project-Name $label) -ne 'DNAKit') { throw 'Project labels must omit the host and environment.' }
     }
     if ($script:fontSize -ne 14 -or $controls.RunningCount.FontSize -ne 13) { throw 'Default text must be one step larger.' }
     $controls.FontIncreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
@@ -636,7 +640,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.11' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.12' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

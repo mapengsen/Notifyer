@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.12 - 2026-10-22
+
+### Changed / 调整
+
+- The red detail line now shows only the project name, removing SSH/remote suffixes, runtime and completion timestamps while retaining the chosen font and color.
+- 红色详情仅显示项目名，删除 SSH／远程后缀、运行时长和完成时间，保留已选择的字号和颜色。
+- Session timing remains available internally for running-state and timeout filtering.
+- 会话时间仍在内部用于运行状态及超时过滤。
+
 ## 0.4.11 - 2026-10-22
 
 ### Added / 新增
