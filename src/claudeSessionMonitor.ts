@@ -8,8 +8,10 @@ import {
   truncate,
 } from "./core";
 import { focusClaudePage, notifyDesktop } from "./notify";
+import { SessionActivity, SessionActivityTracker } from "./sessionActivity";
 
 interface ClaudeTracker {
+  activity: SessionActivityTracker;
   uri: vscode.Uri;
   offset: number;
   remainder: string;
@@ -21,6 +23,7 @@ interface ClaudeTracker {
 }
 
 export class ClaudeSessionMonitor implements vscode.Disposable {
+  public constructor(private readonly onActivity: (activity: SessionActivity, remove?: boolean) => void = () => {}) {}
   private readonly trackers = new Map<string, ClaudeTracker>();
   private readonly processedEventIds = new Set<string>();
   private pollTimer: NodeJS.Timeout | undefined;
@@ -83,6 +86,7 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     let tracker = this.trackers.get(key);
     if (!tracker) {
       tracker = {
+        activity: new SessionActivityTracker("claude", uri.toString(), this.onActivity),
         uri,
         offset: 0,
         remainder: "",
@@ -105,6 +109,7 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     const bytes = await vscode.workspace.fs.readFile(tracker.uri);
     const text = Buffer.from(bytes).toString("utf8");
     if (text.length < tracker.offset) {
+      tracker.activity.reset();
       tracker.offset = 0;
       tracker.remainder = "";
       tracker.sessionId = undefined;
@@ -131,6 +136,8 @@ export class ClaudeSessionMonitor implements vscode.Disposable {
     } catch {
       return;
     }
+
+    tracker.activity.consume(record, emitNotifications);
 
     tracker.sessionId = stringValue(record.sessionId) ?? tracker.sessionId;
     tracker.cwd = stringValue(record.cwd) ?? tracker.cwd;

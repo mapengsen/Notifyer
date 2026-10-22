@@ -2,7 +2,7 @@
 
 语言：<a href="./README.md">English（默认）</a> | <a href="./README.zh-CN.md">简体中文</a>
 
-Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claude Code 主任务和 Terminal 命令完成通知。
+Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，并在 Windows 桌面用悬浮小窗汇总多个 VS Code 窗口的对话状态。
 
 使用 Codex、Claude Code 等 AI 编程工具时，你是否也遇到过这样的场景：
 
@@ -13,6 +13,33 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 **GitHub**: [github.com/mapengsen/Notifyer](https://github.com/mapengsen/Notifyer)
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
+
+## 功能一览
+
+| 功能 | 说明 |
+| --- | --- |
+| Codex / Claude Code | 主任务完成提醒，过滤子 Agent。 |
+| 终端命令 | 成功、失败提醒；默认仅 Python，可配置监听其他命令及忽略列表。 |
+| 通知方式 | 桌面通知、VS Code 通知或两者；支持仅窗口失焦时提醒，桌面发送失败时回退到 VS Code。 |
+| Windows 桌面悬浮窗 | 同一 VS Code 用户配置下，跨窗口汇总运行中与待查看会话。 |
+| 查看流程 | 点击会话卡片切回匹配窗口，手动标记已查看后立即移除；查看状态重启后保留。 |
+| 外观与操作 | 默认白天，可切夜晚；桌面通知开关、置顶、拖动、折叠和隐藏，偏好会保存。 |
+| 本地与远程项目 | 本机 UI 监听可访问的本地、WSL、Remote SSH 和容器会话；悬浮窗显示在本机 Windows 桌面。 |
+| 稳定性与诊断 | 历史扫描静默、多窗口完成通知去重、悬浮窗进程恢复、通知测试与诊断命令。 |
+
+## 开始使用
+
+1. 从 [VS Code 插件市场](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion) 安装或更新 **Notifyer**。使用远程项目时，在本地 VS Code UI 侧启用；需要监控的各窗口都应在同一用户配置下启用此版本。
+2. 更新后，在各个已打开的 VS Code 窗口执行 **Developer: Reload Window**，然后启动 Codex / Claude Code 对话，或在集成终端运行 Python 命令。
+3. Windows 桌面会自动显示悬浮窗。“白天 / 夜晚”切换配色，“桌面通知 开 / 关”控制桌面提醒；点击会话卡片返回匹配窗口，查看结果后标记已查看。
+
+| 命令面板操作 | 用途 |
+| --- | --- |
+| `Notifyer: Show Floating Window` | 打开或恢复 Windows 共享悬浮窗。 |
+| `Notifyer: Hide Floating Window` | 隐藏悬浮窗。 |
+| `Notifyer: Test Desktop Notification` | 测试当前通知链路，桌面通知开关也对该测试生效。 |
+| `Notifyer: Show Diagnostics` | 查看会话监听、通知发送和悬浮窗进程状态。 |
+| `Notifyer: Open Settings` | 配置通知方式、会话目录和终端过滤规则。 |
 
 **我的所有插件推荐：**
 
@@ -37,6 +64,31 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 
 点击桌面通知时，Notifyer 会恢复产生通知的准确 VS Code 窗口。Codex 通知会保留当前编辑器和布局，不再自动打开会话；终端通知会进一步显示原终端。
 
+### 3、Windows 桌面会话悬浮窗
+
+![Windows 悬浮窗，示例数据](image/floating-panel-preview.png)
+
+夜晚配色（示例数据）：
+
+![Windows 悬浮窗夜晚配色](image/floating-panel-night-preview.png)
+
+Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运行时。每个 VS Code 窗口都需要安装并启用此版本的 Notifyer，使用相同的 VS Code 用户配置；Remote SSH、WSL 或容器窗口仍由本机 UI 扩展采集当前可访问的会话。界面每约 2 秒更新，显示每个对话最新一轮的状态：
+
+- **运行中**：已观察到任务开始或对话活动，显示运行时长。
+- **已完成 / 发生错误 · 待查看**：首次扫描完成之后观察到的新结果，保留到手动点击“标记已查看”。只返回窗口不会清除待查看；已查看标记在各窗口之间共享，重启后保留。
+
+界面仅保留运行中与待查看的会话。“标记已查看”会立即移除该项；首次扫描的历史完成记录不显示。窗口关闭、扩展断连、任务中止，或运行中超过默认 30 分钟没有新日志的会话会转为待确认，并从运行列表隐藏；长时间工具执行和等待审批也可能暂时没有日志，不代表失败。
+
+拖动顶部移动小窗，“白天 / 夜晚”切换配色（默认白天），“桌面通知 开 / 关”切换所有窗口的桌面提醒，“置顶”切换始终置顶，“− / +”折叠或展开，“×”隐藏。主题、桌面通知开关、位置、置顶及折叠状态会保存。关闭桌面通知仍会继续采集状态并保留待查看结果；若原来配置了 VS Code 内通知，该通道继续生效。隐藏后使用命令面板中的 **Notifyer: Show Floating Window** 重新显示，也可以运行 **Notifyer: Hide Floating Window**。
+
+单击整张会话卡片即可切回匹配的 VS Code 窗口，也可以用 Tab 聚焦后按 Enter 或空格；具体对话需在窗口内选择。同一个项目被多个窗口打开时，会弹出匹配窗口的选择列表；会话日志通常只能关联到项目，不能证明对话属于其中哪个窗口。来源工作目录未知的会话不纳入总览，子 Agent 不显示。点击“标记已查看”不会触发窗口跳转。
+
+设置 `codexTaskCompanion.floatingWindow.enabled` 为 `false` 可以关闭采集和悬浮窗；`codexTaskCompanion.floatingWindow.quietAfterMinutes` 可调整无新日志的判断时间。关闭浮窗不影响原有通知。状态及对话标题片段只保存在本机扩展存储内，不额外发送到外部服务。浮窗当前仅汇总 Codex / Claude 对话，终端仍使用原有完成通知。
+
+开发验证：`npm run test:unit`；Windows 原生界面与按钮验证：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-floating-panel.ps1`，生成使用示例数据的界面截图，不会打开桌面窗口。
+
+如果安装后只有通知而没有小窗，在连接服务器的 VS Code 窗口中运行 **Notifyer: Show Floating Window**；小窗显示在本机 Windows 桌面上。0.4.1 起会检测小窗进程心跳并自动恢复意外退出的进程。仍未出现时，运行 **Notifyer: Show Diagnostics** 查看 `floatingWindow.helperHealthy`、`lastError`、`panelError` 与 `lastExit`，以及“输出 → Notifyer Floating Window”中的启动日志。
+
 # 如果出现问题：
 
 确保你的Windows的通知是打开的，请勿打扰是关闭的
@@ -54,6 +106,25 @@ Notifyer 是一个专注于本地提醒的 VS Code 插件，负责 Codex、Claud
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月22日（0.4.2）：
+
+本次发布包含 0.4.0 新增的跨窗口桌面监控与 0.4.1 的进程恢复修复，并提供以下外观和查看流程改进。
+
+1. 新增默认白天的昼夜主题按钮，以及跨窗口共享并持久化的桌面通知开关。
+2. 删除“会话总览”副标题，列表仅显示运行中和待查看；已查看后立即移除。
+3. 整张会话卡片可点击切回窗口，移除“返回窗口”按钮；保留同项目多窗口选择。
+
+## 2026年10月22日（0.4.1）：
+
+1. 新增悬浮窗启动日志、进程心跳与退出后的退避自动恢复；手动隐藏不会触发重新显示。
+2. 修复 Windows 原生状态读取阻止文件替换的问题，避免暂时的状态写入错误跳过启动。
+
+## 2026年10月22日（0.4.0）：
+
+1. 新增 Windows 桌面会话悬浮窗，汇总多个 VS Code 窗口中的 Codex / Claude 最新轮次状态。
+2. 支持置顶、拖动、折叠、隐藏与恢复、返回匹配窗口和共享的“标记已查看”。
+3. 新增断连及日志静默检测；首次历史扫描不产生新的待查看结果。
 
 ## 2026年9月15日（0.3.6）：
 

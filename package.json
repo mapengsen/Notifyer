@@ -1,14 +1,18 @@
 {
   "name": "codex-task-companion",
   "displayName": "Notifyer",
-  "description": "Local desktop notifications for Codex and Claude main-task completion and long-running terminal commands in VS Code.",
-  "version": "0.3.6",
+  "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
+  "version": "0.4.2",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/mapengsen/Notifyer.git"
+  },
+  "homepage": "https://github.com/mapengsen/Notifyer#readme",
+  "bugs": {
+    "url": "https://github.com/mapengsen/Notifyer/issues"
   },
   "engines": {
     "vscode": "^1.93.0"
@@ -37,6 +41,16 @@
   "contributes": {
     "commands": [
       {
+        "command": "codexTaskCompanion.showFloatingWindow",
+        "title": "Notifyer: Show Floating Window",
+        "enablement": "isWindows"
+      },
+      {
+        "command": "codexTaskCompanion.hideFloatingWindow",
+        "title": "Notifyer: Hide Floating Window",
+        "enablement": "isWindows"
+      },
+      {
         "command": "codexTaskCompanion.testNotification",
         "title": "Notifyer: Test Desktop Notification"
       },
@@ -52,6 +66,19 @@
     "configuration": {
       "title": "Notifyer",
       "properties": {
+        "codexTaskCompanion.floatingWindow.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "在 Windows 桌面显示共享会话悬浮窗，汇总同一 VS Code 用户配置下各窗口的 Codex / Claude 状态。关闭后停止悬浮窗状态采集；原有通知不受影响。"
+        },
+        "codexTaskCompanion.floatingWindow.quietAfterMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "scope": "application",
+          "description": "运行中的对话超过此分钟数没有新日志时转为待确认，并从悬浮窗运行列表隐藏；日志活动恢复后重新显示。长时间工具执行或等待审批也可能暂时没有日志，不代表任务失败。"
+        },
         "codexTaskCompanion.notifications.mode": {
           "type": "string",
           "enum": [
@@ -209,7 +236,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "test:unit": "npm run compile && node --test out/src/test/core.test.js",
+    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "npm run compile && vsce package"
   },

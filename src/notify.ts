@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { isDesktopNotificationActivation } from "./core";
 import { NotificationClaimStore } from "./notificationClaimStore";
+import { notificationChannels, readDesktopNotificationPolicy } from "./notificationPolicy";
 
 export type NotificationLevel = "info" | "error";
 export type NotificationKind = "codex" | "claude" | "terminal";
@@ -26,6 +27,7 @@ export type NotificationDeliveryOutcome =
   | "vscode-fallback"
   | "suppressed-focused"
   | "suppressed-duplicate"
+  | "suppressed-muted"
   | "failed";
 
 export interface NotificationDeliveryResult {
@@ -48,6 +50,7 @@ interface NativeNotifier {
 let extensionContext: vscode.ExtensionContext | undefined;
 let windowsNotificationRegistration: Promise<void> | undefined;
 let notificationClaimStore: NotificationClaimStore | undefined;
+let desktopNotificationPolicyPath: string | undefined;
 let originatingWindowHandle = "";
 let windowCaptureGeneration = 0;
 const notificationDiagnostics = {
@@ -70,11 +73,13 @@ export function getNotificationDiagnostics(): Record<string, unknown> {
     openVsCodeOnClick: shouldOpenVsCodeOnClick(),
     originatingWindowHandle,
     windowFocused: vscode.window.state.focused,
+    desktopNotificationsEnabled: areDesktopNotificationsEnabled(),
   };
 }
 
 export function initializeNotifications(context: vscode.ExtensionContext): void {
   extensionContext = context;
+  desktopNotificationPolicyPath = path.join(context.globalStorageUri.fsPath, "floating-panel", "notification-policy.json");
   notificationClaimStore = new NotificationClaimStore(
     path.join(context.globalStorageUri.fsPath, "notification-claims"),
   );
@@ -92,6 +97,10 @@ export function initializeNotifications(context: vscode.ExtensionContext): void 
     }),
   );
   trackOriginatingWindow(vscode.window.state.focused);
+}
+
+export function areDesktopNotificationsEnabled(): boolean {
+  return readDesktopNotificationPolicy(desktopNotificationPolicyPath);
 }
 
 export async function focusClaudePage(): Promise<void> {
@@ -277,6 +286,11 @@ async function focusVsCodeWindow(
   return workbenchFocused ? "vscode-command-only" : "failed";
 }
 
+/** Used by the floating panel's per-window IPC; never changes read state. */
+export async function focusOriginatingWindow(): Promise<string> {
+  return focusVsCodeWindow(getWorkspacePath(), getWorkspaceProjectName(), originatingWindowHandle);
+}
+
 async function focusCurrentWorkbenchWindow(): Promise<boolean> {
   if (vscode.window.state.focused) return true;
   try {
@@ -399,6 +413,9 @@ export async function notifyDesktop(
   kind: NotificationKind = "codex",
   options: DesktopNotificationOptions = {},
 ): Promise<NotificationDeliveryResult> {
+  const mode = getMode();
+  const channels = notificationChannels(mode, areDesktopNotificationsEnabled());
+  if (!channels.desktop && !channels.editor) return deliveryResult(false, "suppressed-muted");
   if (shouldSuppressWhenFocused()) {
     return deliveryResult(false, "suppressed-focused");
   }
@@ -415,7 +432,6 @@ export async function notifyDesktop(
     }
   }
 
-  const mode = getMode();
   const targetWorkspacePath = options.workspacePath ?? getWorkspacePath();
   const targetProjectHint = options.projectHint ?? getWorkspaceProjectName();
   if (process.platform === "win32" && !originatingWindowHandle && vscode.window.state.focused) {
@@ -434,11 +450,11 @@ export async function notifyDesktop(
       targetWindowHandle,
     );
   };
-  if (mode === "VS Code" || mode === "Both") {
+  if (channels.editor) {
     showInEditor(title, message, level, openTarget);
   }
 
-  if (mode === "VS Code") {
+  if (!channels.desktop) {
     return deliveryResult(true, "vscode");
   }
 

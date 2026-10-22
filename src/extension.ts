@@ -3,15 +3,18 @@ import { ClaudeSessionMonitor } from "./claudeSessionMonitor";
 import { CodexSessionMonitor } from "./sessionMonitor";
 import { getNotificationDiagnostics, initializeNotifications, notifyDesktop } from "./notify";
 import { TerminalMonitor } from "./terminalMonitor";
+import { FloatingPanel } from "./floatingPanel";
 
 export function activate(context: vscode.ExtensionContext): void {
   initializeNotifications(context);
-  const sessionMonitor = new CodexSessionMonitor();
-  const claudeSessionMonitor = new ClaudeSessionMonitor();
+  const floatingPanel = new FloatingPanel(context);
+  const sessionMonitor = new CodexSessionMonitor(floatingPanel.accept);
+  const claudeSessionMonitor = new ClaudeSessionMonitor(floatingPanel.accept);
   const terminalMonitor = new TerminalMonitor();
   const diagnostics = vscode.window.createOutputChannel("Notifyer");
 
   context.subscriptions.push(
+    floatingPanel,
     sessionMonitor,
     claudeSessionMonitor,
     terminalMonitor,
@@ -30,6 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
         claudeSession: claudeSessionMonitor.getDiagnostics(),
         terminal: terminalMonitor.getDiagnostics(),
         notifications: getNotificationDiagnostics(),
+        floatingWindow: floatingPanel.getDiagnostics(),
         remoteName: vscode.env.remoteName ?? "",
       }, null, 2));
       diagnostics.show(true);
@@ -39,14 +43,16 @@ export function activate(context: vscode.ExtensionContext): void {
           event.affectsConfiguration("codexTaskCompanion.codex.sessionLookbackDays") ||
           event.affectsConfiguration("codexTaskCompanion.codex.sessionsRoot") ||
           event.affectsConfiguration("codexTaskCompanion.codex.enabled") ||
-          event.affectsConfiguration("codexTaskCompanion.codex.notifyInitialScan")) {
+          event.affectsConfiguration("codexTaskCompanion.codex.notifyInitialScan") ||
+          event.affectsConfiguration("codexTaskCompanion.floatingWindow.enabled")) {
         void sessionMonitor.restart();
       }
       if (event.affectsConfiguration("codexTaskCompanion.claude.sessionPollMs") ||
           event.affectsConfiguration("codexTaskCompanion.claude.sessionLookbackDays") ||
           event.affectsConfiguration("codexTaskCompanion.claude.projectsRoot") ||
           event.affectsConfiguration("codexTaskCompanion.claude.enabled") ||
-          event.affectsConfiguration("codexTaskCompanion.claude.notifyInitialScan")) {
+          event.affectsConfiguration("codexTaskCompanion.claude.notifyInitialScan") ||
+          event.affectsConfiguration("codexTaskCompanion.floatingWindow.enabled")) {
         void claudeSessionMonitor.restart();
       }
     }),

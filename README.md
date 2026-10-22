@@ -2,7 +2,7 @@
 
 Language: <a href="https://github.com/mapengsen/Notifyer">English (default)</a> | <a href="https://github.com/mapengsen/Notifyer/blob/main/README.zh-CN.md">简体中文</a>
 
-Notifyer is a focused local-notification extension for Codex and Claude Code main-task completion and terminal commands in VS Code.
+Notifyer provides Codex and Claude Code main-task notifications, terminal completion notifications, and a Windows desktop floating window summarizing conversations across VS Code windows.
 
 When using AI coding tools such as Codex and Claude Code, have you ever run into this situation?
 
@@ -13,6 +13,33 @@ What really consumes time is often not coding itself, but repeatedly switching b
 **GitHub**: [github.com/mapengsen/Notifyer](https://github.com/mapengsen/Notifyer)
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
+
+## Features at a glance
+
+| Feature | What Notifyer provides |
+| --- | --- |
+| Codex and Claude Code | Main-task completion reminders with child-agent filtering. |
+| Terminal commands | Success/failure reminders; Python commands by default, with configurable command filtering. |
+| Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
+| Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. |
+| Review workflow | Click a card to return to a matching window; mark a result reviewed to remove it. Review state survives restarts. |
+| Appearance and controls | Day/night colors, day by default; desktop notification switch, pinning, dragging, collapse and hide. Preferences persist. |
+| Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
+| Reliability and diagnostics | Silent historical baseline, completion deduplication across windows, helper recovery, test notification and diagnostic commands. |
+
+## Getting started
+
+1. Install or update **Notifyer** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion). For a remote project, enable it in the local VS Code UI. Each window to be monitored needs this version enabled in the same profile.
+2. After updating, run **Developer: Reload Window** in each open VS Code window. Start a Codex / Claude Code conversation, or run a Python command in an integrated terminal.
+3. On Windows, the floating window opens automatically. Use **白天 / 夜晚** to change colors, **桌面通知 开 / 关** to toggle desktop reminders, and click a conversation card to return to its matching window. Mark completed results reviewed when finished.
+
+| Command palette action | Purpose |
+| --- | --- |
+| `Notifyer: Show Floating Window` | Open or restore the shared Windows floating window. |
+| `Notifyer: Hide Floating Window` | Hide the floating window. |
+| `Notifyer: Test Desktop Notification` | Test the configured notification delivery; the desktop switch applies here too. |
+| `Notifyer: Show Diagnostics` | Inspect session monitoring, notification delivery and helper health. |
+| `Notifyer: Open Settings` | Configure notification channels, session directories and terminal filters. |
 
 **All My Plugin Recommendations:**
 
@@ -37,6 +64,31 @@ Notifyer monitors commands running in the terminal and sends a desktop notificat
 
 When you click a desktop notification, Notifyer targets the exact VS Code window that produced it. Codex notifications preserve the current editor and layout; terminal notifications additionally reveal the originating terminal.
 
+### 3. Windows floating session window
+
+![Windows floating session window with sample data](image/floating-panel-preview.png)
+
+Night colors (sample data):
+
+![Windows floating session window in night colors](image/floating-panel-night-preview.png)
+
+On Windows, one shared, draggable desktop window opens automatically; no extra desktop runtime is required. Install and enable this version of Notifyer in each VS Code window using the same VS Code profile. Remote SSH, WSL and container windows report sessions accessible to the local UI extension. The panel refreshes approximately every two seconds and shows each conversation's latest turn:
+
+- **Running** with elapsed time.
+- **Completed / error, awaiting review** for results observed after the initial scan. Returning to a window never clears this state. Use **标记已查看** (mark reviewed); acknowledgements synchronize across windows and survive restarts.
+
+Only running and unread conversations appear. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
+
+Drag the header to move the panel. Toggle **白天 / 夜晚** for day/night colors (day by default), **桌面通知 开 / 关** for shared desktop notifications, **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. Reopen it with **Notifyer: Show Floating Window** in the command palette; **Notifyer: Hide Floating Window** hides it.
+
+Click anywhere on a conversation card to activate its matching VS Code window, or focus it with Tab and press Enter/Space. Select the conversation within that window. When multiple windows match the same project, a window chooser appears because session logs do not reliably identify the originating window. Marking reviewed does not activate the window. Sessions without a known workspace path and child agents are excluded. The panel currently summarizes Codex / Claude conversations; terminal tasks continue using the existing notifications. The interface currently uses Chinese labels.
+
+Set `codexTaskCompanion.floatingWindow.enabled` to `false` to stop panel collection and hide it. Configure `codexTaskCompanion.floatingWindow.quietAfterMinutes` to adjust the quiet timeout. Existing notifications remain available. State and prompt title excerpts remain in local extension storage; this feature sends no additional data to external services.
+
+Developer checks: `npm run test:unit`; on Windows, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-floating-panel.ps1` to validate native controls and generate a sample-data preview without opening a desktop window.
+
+If notifications work but the floating window is missing, run **Notifyer: Show Floating Window** in the connected VS Code window. The panel appears on the local Windows desktop. Since 0.4.1, helper heartbeats detect unexpected exits and trigger recovery with backoff. For startup failures, run **Notifyer: Show Diagnostics** and inspect `floatingWindow.helperHealthy`, `lastError`, `panelError`, `lastExit`, and **Output → Notifyer Floating Window**.
+
 # If an issue occurs:
 
 Make sure your Windows notifications are enabled and "Do Not Disturb" is turned off.
@@ -54,6 +106,25 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.2)
+
+This release includes the new cross-window desktop monitor introduced in 0.4.0 and the helper recovery fixes from 0.4.1, alongside the following controls and review improvements.
+
+1. Added persistent day/night themes (day by default) and a desktop notification toggle shared across windows.
+2. Removed the subtitle and limited the list to running and unread conversations; reviewing a result immediately removes it.
+3. Made entire cards activate matching windows, with a chooser for ambiguous matches; removed the separate return button.
+
+## October 22, 2026 (0.4.1)
+
+1. Added floating-helper startup logs, heartbeats and automatic recovery with backoff. Manually hidden windows stay hidden.
+2. Fixed Windows snapshot-read sharing so transient replacement failures no longer prevent UI launch.
+
+## October 22, 2026 (0.4.0)
+
+1. Added a shared Windows desktop floating window showing the latest Codex / Claude turns across VS Code windows.
+2. Added pinning, dragging, collapsing, hiding/reopening, matching-window activation, and persistent shared review acknowledgements.
+3. Added disconnected/quiet status handling and a silent historical baseline for unread results.
 
 ## September 15, 2026 (0.3.6)
 

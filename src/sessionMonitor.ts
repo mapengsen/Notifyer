@@ -13,6 +13,7 @@ import {
   type TokenUsage,
 } from "./core";
 import { notifyDesktop } from "./notify";
+import { SessionActivity, SessionActivityTracker } from "./sessionActivity";
 
 interface TurnState {
   cwd?: string;
@@ -24,6 +25,7 @@ interface TurnState {
 }
 
 interface Tracker {
+  activity: SessionActivityTracker;
   uri: vscode.Uri;
   offset: number;
   remainder: string;
@@ -50,6 +52,7 @@ interface CompletionPayload {
 }
 
 export class CodexSessionMonitor implements vscode.Disposable {
+  public constructor(private readonly onActivity: (activity: SessionActivity, remove?: boolean) => void = () => {}) {}
   private readonly trackers = new Map<string, Tracker>();
   private readonly processedEventIds = new Set<string>();
   private pollTimer: NodeJS.Timeout | undefined;
@@ -135,6 +138,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
     let tracker = this.trackers.get(key);
     if (!tracker) {
       tracker = {
+        activity: new SessionActivityTracker("codex", uri.toString(), this.onActivity),
         uri,
         offset: 0,
         remainder: "",
@@ -158,6 +162,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
     const bytes = await vscode.workspace.fs.readFile(tracker.uri);
     const text = Buffer.from(bytes).toString("utf8");
     if (text.length < tracker.offset) {
+      tracker.activity.reset();
       tracker.offset = 0;
       tracker.remainder = "";
       tracker.sessionId = undefined;
@@ -188,6 +193,8 @@ export class CodexSessionMonitor implements vscode.Disposable {
     } catch {
       return;
     }
+
+    tracker.activity.consume(record, emitNotifications);
 
     if (record.type === "session_meta") {
       const meta = asRecord(record.payload);

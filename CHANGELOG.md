@@ -4,6 +4,35 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.2 - 2026-10-22
+
+### Changed / 调整
+
+- Added persistent day/night themes (day by default), themed controls and scrollbars, and a shared desktop-notification toggle that preserves unread tracking and configured editor notifications.
+- 新增默认白天的昼夜配色、随主题切换的控件与滚动条，以及跨窗口共享的桌面通知开关；关闭桌面通知仍保留未读结果和已配置的编辑器通知。
+- Removed the subtitle, reviewed history and unknown states from the visible list. Entire cards now activate matching windows, with keyboard support and a chooser for ambiguous matches; marking reviewed removes a card without changing windows.
+- 删除副标题，列表仅显示运行中与待查看；整张卡片支持点击或键盘切回窗口，同项目多窗口可选择；标记已查看后立即移除且不切换窗口。
+
+## 0.4.1 - 2026-10-22
+
+### Fixed / 修复
+
+- Added floating-helper heartbeats and automatic restart with backoff, capturing startup errors and exit codes in diagnostics. Hidden windows remain hidden; manual show reports startup failures.
+- 新增悬浮窗进程心跳、退避重启和启动错误/退出码诊断；主动隐藏的小窗不会被自动重启逻辑重新打开，手动显示失败时提供诊断入口。
+- Native snapshot reads now permit atomic file replacement, preventing Windows sharing violations; snapshot-write failures no longer prevent initial UI launch.
+- 原生窗口读取状态时允许文件原子替换，避免 Windows 文件占用；临时状态写入失败不再跳过窗口启动。
+
+## 0.4.0 - 2026-10-22
+
+### Added / 新增
+
+- Shared native Windows floating window for the latest Codex / Claude conversation turns across VS Code windows in the same profile. Supports pinning, dragging, collapsing, hiding/reopening and matching-window activation.
+- 新增跨 VS Code 窗口的 Windows 原生会话悬浮窗，支持置顶、拖动、折叠、隐藏和恢复，以及返回匹配窗口。
+- Persistent shared review acknowledgements, silent historical baselines, session deduplication, and unconfirmed status after disconnection, aborts or prolonged log silence. Multiple matching project windows require explicit selection.
+- 待查看结果及已查看标记持久化并跨窗口共享；支持历史基线静默、多窗口去重，以及断连、中止或长时间无日志时的待确认状态。同项目多窗口时提供窗口选择。
+- Unit coverage for activity parsing and shared state, plus offscreen Windows WPF control/IPC validation and preview generation.
+- 新增状态解析及共享存储测试，以及 Windows WPF 控件、IPC 和界面渲染验证。
+
 ## 0.3.6 - 2026-09-15
 
 ### Fixed / 修复
