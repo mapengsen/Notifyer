@@ -1,11 +1,11 @@
 import * as fs from "node:fs";
 
 export function readDesktopNotificationPolicy(file: string | undefined): boolean {
-  if (!file) return true;
+  if (!file) return false;
   try {
     const value = JSON.parse(fs.readFileSync(file, "utf8")) as { desktopEnabled?: unknown };
-    return value.desktopEnabled !== false;
-  } catch { return true; }
+    return value.desktopEnabled === true;
+  } catch { return false; }
 }
 
 export function notificationChannels(mode: "Desktop" | "VS Code" | "Both", desktopEnabled: boolean): {

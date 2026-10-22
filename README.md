@@ -23,7 +23,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 | Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
 | Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. |
 | Review workflow | Click a card to return to a matching window; mark a result reviewed to remove it. Review state survives restarts. |
-| Appearance and controls | Day/night colors, day by default; desktop notification switch, pinning, dragging, collapse and hide. Preferences persist. |
+| Appearance and controls | Sun/moon theme icons, day by default, with pure black daytime text; desktop notifications off by default; pinning, dragging, collapse and hide. Preferences persist. |
 | Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
 | Reliability and diagnostics | Silent historical baseline, completion deduplication across windows, helper recovery, test notification and diagnostic commands. |
 
@@ -31,12 +31,13 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 1. Install or update **Notifyer** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion). For a remote project, enable it in the local VS Code UI. Each window to be monitored needs this version enabled in the same profile.
 2. After updating, run **Developer: Reload Window** in each open VS Code window. Start a Codex / Claude Code conversation, or run a Python command in an integrated terminal.
-3. On Windows, the floating window opens automatically. Use **白天 / 夜晚** to change colors, **桌面通知 开 / 关** to toggle desktop reminders, and click a conversation card to return to its matching window. Mark completed results reviewed when finished.
+3. On Windows, the floating window opens automatically. Click the sun/moon icon to change colors. Desktop notifications default to off; enable them with **桌面通知 关** or **Notifyer: Toggle Desktop Notifications** (available on all platforms). Click a conversation card to return to its matching window, and mark completed results reviewed when finished.
 
 | Command palette action | Purpose |
 | --- | --- |
 | `Notifyer: Show Floating Window` | Open or restore the shared Windows floating window. |
 | `Notifyer: Hide Floating Window` | Hide the floating window. |
+| `Notifyer: Toggle Desktop Notifications` | Toggle desktop reminders on any platform. Defaults to off; explicit choices persist. |
 | `Notifyer: Test Desktop Notification` | Test the configured notification delivery; the desktop switch applies here too. |
 | `Notifyer: Show Diagnostics` | Inspect session monitoring, notification delivery and helper health. |
 | `Notifyer: Open Settings` | Configure notification channels, session directories and terminal filters. |
@@ -79,7 +80,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 
 Only running and unread conversations appear. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
-Drag the header to move the panel. Toggle **白天 / 夜晚** for day/night colors (day by default), **桌面通知 开 / 关** for shared desktop notifications, **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. Reopen it with **Notifyer: Show Floating Window** in the command palette; **Notifyer: Hide Floating Window** hides it.
+Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. Reopen it with **Notifyer: Show Floating Window** in the command palette; **Notifyer: Hide Floating Window** hides it.
 
 Click anywhere on a conversation card to activate its matching VS Code window, or focus it with Tab and press Enter/Space. Select the conversation within that window. When multiple windows match the same project, a window chooser appears because session logs do not reliably identify the originating window. Marking reviewed does not activate the window. Sessions without a known workspace path and child agents are excluded. The panel currently summarizes Codex / Claude conversations; terminal tasks continue using the existing notifications. The interface currently uses Chinese labels.
 
@@ -106,6 +107,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.3)
+
+1. Replaced text theme labels with sun/moon icons and made daytime text pure black.
+2. Desktop notifications now default to off, including missing or invalid preferences; explicit saved choices persist.
+3. Added **Notifyer: Toggle Desktop Notifications** on all platforms, so reminders can be enabled without the Windows panel.
 
 ## October 22, 2026 (0.4.2)
 

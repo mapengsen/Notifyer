@@ -6,21 +6,21 @@
   <Window.Resources>
     <SolidColorBrush x:Key="PanelBackground" Color="#F4F7FB"/>
     <SolidColorBrush x:Key="PanelBorder" Color="#CDD8E6"/>
-    <SolidColorBrush x:Key="TitleForeground" Color="#172B45"/>
-    <SolidColorBrush x:Key="MutedForeground" Color="#677B94"/>
-    <SolidColorBrush x:Key="ButtonForeground" Color="#334B68"/>
+    <SolidColorBrush x:Key="TitleForeground" Color="#000000"/>
+    <SolidColorBrush x:Key="MutedForeground" Color="#000000"/>
+    <SolidColorBrush x:Key="ButtonForeground" Color="#000000"/>
     <SolidColorBrush x:Key="ButtonBackground" Color="#E5ECF5"/>
     <SolidColorBrush x:Key="PinBackground" Color="#D5EEE3"/>
     <SolidColorBrush x:Key="NotificationOn" Color="#D5EEE3"/>
     <SolidColorBrush x:Key="NotificationOff" Color="#F0DFDF"/>
     <SolidColorBrush x:Key="RunningBackground" Color="#E2F0FF"/>
-    <SolidColorBrush x:Key="RunningForeground" Color="#1767A4"/>
+    <SolidColorBrush x:Key="RunningForeground" Color="#000000"/>
     <SolidColorBrush x:Key="UnreadBackground" Color="#FFF0D9"/>
-    <SolidColorBrush x:Key="UnreadForeground" Color="#8A560C"/>
+    <SolidColorBrush x:Key="UnreadForeground" Color="#000000"/>
     <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="CardBorder" Color="#D6E0EC"/>
     <SolidColorBrush x:Key="UnreadBorder" Color="#E0BC7E"/>
-    <SolidColorBrush x:Key="TextForeground" Color="#203650"/>
+    <SolidColorBrush x:Key="TextForeground" Color="#000000"/>
     <SolidColorBrush x:Key="Accent" Color="#38B49A"/>
     <SolidColorBrush x:Key="ScrollThumb" Color="#ACBCD0"/>
     <Style TargetType="Button">
@@ -72,8 +72,9 @@
           <TextBlock Text="Notifyer" Foreground="{DynamicResource TitleForeground}" FontSize="17" FontWeight="SemiBold"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal">
-          <Button x:Name="ThemeButton" Content="白天" FontSize="10" Margin="0,0,5,0" ToolTip="切换白天 / 夜晚配色"/>
-          <Button x:Name="NotificationButton" Content="桌面通知 开" FontSize="10" Margin="0,0,5,0" ToolTip="开启 / 关闭所有窗口的桌面通知"/>
+          <Button x:Name="ThemeButton" Content="&#xE706;" FontFamily="Segoe MDL2 Assets" FontSize="14" Width="28" Padding="6,4"
+                  Margin="0,0,5,0" ToolTip="切换白天 / 夜晚配色" AutomationProperties.Name="切换白天或夜晚配色"/>
+          <Button x:Name="NotificationButton" Content="桌面通知 关" FontSize="10" Margin="0,0,5,0" ToolTip="开启 / 关闭所有窗口的桌面通知"/>
           <Button x:Name="PinButton" Content="置顶" FontSize="10" Margin="0,0,5,0" ToolTip="切换始终置顶"/>
           <Button x:Name="CollapseButton" Content="−" Padding="8,3" Margin="0,0,5,0" ToolTip="折叠 / 展开"/>
           <Button x:Name="HideButton" Content="×" Padding="8,3" ToolTip="隐藏；在 VS Code 命令面板中重新显示"/>

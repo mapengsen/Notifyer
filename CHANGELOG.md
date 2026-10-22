@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.3 - 2026-10-22
+
+### Changed / 调整
+
+- Replaced theme text with sun/moon symbols and made all daytime text pure black.
+- 主题按钮改为太阳／月亮符号，白天文字统一为纯黑。
+- Desktop notifications now default to off when preferences are missing or invalid; explicit saved choices persist. Added a cross-platform command to toggle desktop notifications without the Windows panel.
+- 桌面通知在偏好缺失或无效时默认关闭，保留手动保存的选择；新增跨平台通知开关命令，无需悬浮窗也可开启。
+
 ## 0.4.2 - 2026-10-22
 
 ### Changed / 调整

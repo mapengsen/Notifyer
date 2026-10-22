@@ -23,7 +23,7 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 | 通知方式 | 桌面通知、VS Code 通知或两者；支持仅窗口失焦时提醒，桌面发送失败时回退到 VS Code。 |
 | Windows 桌面悬浮窗 | 同一 VS Code 用户配置下，跨窗口汇总运行中与待查看会话。 |
 | 查看流程 | 点击会话卡片切回匹配窗口，手动标记已查看后立即移除；查看状态重启后保留。 |
-| 外观与操作 | 默认白天，可切夜晚；桌面通知开关、置顶、拖动、折叠和隐藏，偏好会保存。 |
+| 外观与操作 | 太阳／月亮图标切换昼夜配色，默认白天，白天文字为纯黑；桌面通知默认关闭，可手动开启；支持置顶、拖动、折叠和隐藏，偏好会保存。 |
 | 本地与远程项目 | 本机 UI 监听可访问的本地、WSL、Remote SSH 和容器会话；悬浮窗显示在本机 Windows 桌面。 |
 | 稳定性与诊断 | 历史扫描静默、多窗口完成通知去重、悬浮窗进程恢复、通知测试与诊断命令。 |
 
@@ -31,12 +31,13 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 1. 从 [VS Code 插件市场](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion) 安装或更新 **Notifyer**。使用远程项目时，在本地 VS Code UI 侧启用；需要监控的各窗口都应在同一用户配置下启用此版本。
 2. 更新后，在各个已打开的 VS Code 窗口执行 **Developer: Reload Window**，然后启动 Codex / Claude Code 对话，或在集成终端运行 Python 命令。
-3. Windows 桌面会自动显示悬浮窗。“白天 / 夜晚”切换配色，“桌面通知 开 / 关”控制桌面提醒；点击会话卡片返回匹配窗口，查看结果后标记已查看。
+3. Windows 桌面会自动显示悬浮窗。点击太阳／月亮图标切换配色；桌面通知默认关闭，需要时点击“桌面通知 关”开启，或运行 **Notifyer: Toggle Desktop Notifications**（所有平台可用）。点击会话卡片返回匹配窗口，查看结果后标记已查看。
 
 | 命令面板操作 | 用途 |
 | --- | --- |
 | `Notifyer: Show Floating Window` | 打开或恢复 Windows 共享悬浮窗。 |
 | `Notifyer: Hide Floating Window` | 隐藏悬浮窗。 |
+| `Notifyer: Toggle Desktop Notifications` | 开启或关闭桌面通知，所有平台可用；默认关闭，手动选择会保存。 |
 | `Notifyer: Test Desktop Notification` | 测试当前通知链路，桌面通知开关也对该测试生效。 |
 | `Notifyer: Show Diagnostics` | 查看会话监听、通知发送和悬浮窗进程状态。 |
 | `Notifyer: Open Settings` | 配置通知方式、会话目录和终端过滤规则。 |
@@ -79,7 +80,7 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 
 界面仅保留运行中与待查看的会话。“标记已查看”会立即移除该项；首次扫描的历史完成记录不显示。窗口关闭、扩展断连、任务中止，或运行中超过默认 30 分钟没有新日志的会话会转为待确认，并从运行列表隐藏；长时间工具执行和等待审批也可能暂时没有日志，不代表失败。
 
-拖动顶部移动小窗，“白天 / 夜晚”切换配色（默认白天），“桌面通知 开 / 关”切换所有窗口的桌面提醒，“置顶”切换始终置顶，“− / +”折叠或展开，“×”隐藏。主题、桌面通知开关、位置、置顶及折叠状态会保存。关闭桌面通知仍会继续采集状态并保留待查看结果；若原来配置了 VS Code 内通知，该通道继续生效。隐藏后使用命令面板中的 **Notifyer: Show Floating Window** 重新显示，也可以运行 **Notifyer: Hide Floating Window**。
+拖动顶部移动小窗，太阳／月亮图标切换配色（默认白天，文字为纯黑），“桌面通知 开 / 关”切换所有窗口的桌面提醒（默认关闭），“置顶”切换始终置顶，“− / +”折叠或展开，“×”隐藏。主题、桌面通知开关、位置、置顶及折叠状态会保存；以前手动开启的桌面通知选择会保留。关闭桌面通知仍会继续采集状态并保留待查看结果；若原来配置了 VS Code 内通知，该通道继续生效。隐藏后使用命令面板中的 **Notifyer: Show Floating Window** 重新显示，也可以运行 **Notifyer: Hide Floating Window**。
 
 单击整张会话卡片即可切回匹配的 VS Code 窗口，也可以用 Tab 聚焦后按 Enter 或空格；具体对话需在窗口内选择。同一个项目被多个窗口打开时，会弹出匹配窗口的选择列表；会话日志通常只能关联到项目，不能证明对话属于其中哪个窗口。来源工作目录未知的会话不纳入总览，子 Agent 不显示。点击“标记已查看”不会触发窗口跳转。
 
@@ -106,6 +107,12 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月22日（0.4.3）：
+
+1. 主题按钮改为太阳／月亮图标，白天文字统一为纯黑。
+2. 桌面通知默认关闭，缺失或无效的偏好也默认关闭；保留已手动保存的开关选择。
+3. 新增跨平台命令 **Notifyer: Toggle Desktop Notifications**，无需悬浮窗也可切换桌面通知。
 
 ## 2026年10月22日（0.4.2）：
 

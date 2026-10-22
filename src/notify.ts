@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import { isDesktopNotificationActivation } from "./core";
 import { NotificationClaimStore } from "./notificationClaimStore";
 import { notificationChannels, readDesktopNotificationPolicy } from "./notificationPolicy";
+import { atomicWriteJson } from "./floatingState";
 
 export type NotificationLevel = "info" | "error";
 export type NotificationKind = "codex" | "claude" | "terminal";
@@ -80,6 +81,11 @@ export function getNotificationDiagnostics(): Record<string, unknown> {
 export function initializeNotifications(context: vscode.ExtensionContext): void {
   extensionContext = context;
   desktopNotificationPolicyPath = path.join(context.globalStorageUri.fsPath, "floating-panel", "notification-policy.json");
+  context.subscriptions.push(vscode.commands.registerCommand("codexTaskCompanion.toggleDesktopNotifications", async () => {
+    const enabled = !areDesktopNotificationsEnabled();
+    atomicWriteJson(desktopNotificationPolicyPath!, { desktopEnabled: enabled, updatedAt: Date.now() });
+    await vscode.window.showInformationMessage(`Notifyer：桌面通知已${enabled ? "开启" : "关闭"}。`);
+  }));
   notificationClaimStore = new NotificationClaimStore(
     path.join(context.globalStorageUri.fsPath, "notification-claims"),
   );

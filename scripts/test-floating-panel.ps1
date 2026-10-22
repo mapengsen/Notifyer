@@ -10,7 +10,7 @@ $rows = @(
   @{ key = 'codex:d'; provider = 'codex'; sessionId = 'session-d'; turnId = 'd'; title = '已查看的历史结果'; cwd = 'F:\projects\Notifyer'; status = 'completed'; unread = $false; acknowledgement = ('d' * 64); startedAt = ($now - 600000); updatedAt = ($now - 600000); owners = @($owner) }
 )
 $encoding = New-Object Text.UTF8Encoding $false
-[IO.File]::WriteAllText((Join-Path $OutputDirectory 'model.json'), (@{ updatedAt = $now; rows = $rows } | ConvertTo-Json -Depth 12), $encoding)
+[IO.File]::WriteAllText((Join-Path $OutputDirectory 'model.json'), (@{ updatedAt = $now; rows = $rows; desktopNotificationsEnabled = $true } | ConvertTo-Json -Depth 12), $encoding)
 $preview = Join-Path $OutputDirectory 'floating-panel-preview.png'
 $scriptFile = Join-Path $PSScriptRoot '..\resources\floating-panel.ps1'
 $instanceKey = [guid]::NewGuid().ToString('N').Substring(0, 24)

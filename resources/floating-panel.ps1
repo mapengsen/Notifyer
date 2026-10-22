@@ -2,6 +2,7 @@
   [Parameter(Mandatory = $true)][string]$StateRoot,
   [Parameter(Mandatory = $true)][ValidatePattern('^[a-f0-9]{24}$')][string]$InstanceKey,
   [switch]$ValidateOnly,
+  [switch]$StartHidden,
   [string]$PreviewPath = "",
   [ValidateSet('', 'day', 'night')][string]$PreviewTheme = '',
   [switch]$SelfTest
@@ -46,9 +47,9 @@ try {
   $reader.Close()
   $script:collapsed = $false
   $script:theme = 'day'
-  $script:desktopEnabled = $true
+  $script:desktopEnabled = $false
   $script:lastModel = ''
-  $script:lastControl = ''
+  $script:lastControl = if ($StartHidden) { (Read-Json (Join-Path $StateRoot 'control.json')).id } else { '' }
   $script:lastResponse = 0
   $script:lastLiveAt = Now-Ms
   $script:cards = @()
@@ -84,21 +85,22 @@ try {
   if ($PreviewTheme) { $script:theme = $PreviewTheme }
   $notificationPolicyPath = Join-Path $StateRoot 'notification-policy.json'
   $notificationPolicy = Read-Json $notificationPolicyPath
-  if ($notificationPolicy) { $script:desktopEnabled = $notificationPolicy.desktopEnabled -ne $false }
+  if ($notificationPolicy) { $script:desktopEnabled = ($notificationPolicy.desktopEnabled -is [bool]) -and $notificationPolicy.desktopEnabled }
   function Save-Preferences {
     Write-Json $preferencesPath @{ left = $script:window.Left; top = $script:window.Top; topmost = $script:window.Topmost; collapsed = $script:collapsed; theme = $script:theme }
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.2'; theme = $script:theme; desktopEnabled = $script:desktopEnabled
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.3'; theme = $script:theme; desktopEnabled = $script:desktopEnabled
     }
   }
   function Update-Chrome {
     $controls.Body.Visibility = if ($script:collapsed) { 'Collapsed' } else { 'Visible' }
     $controls.CollapseButton.Content = if ($script:collapsed) { '+' } else { '−' }
     $controls.PinButton.Background = if ($script:window.Topmost) { $script:window.Resources['PinBackground'] } else { $script:window.Resources['ButtonBackground'] }
-    $controls.ThemeButton.Content = if ($script:theme -eq 'night') { '夜晚' } else { '白天' }
+    $controls.ThemeButton.Content = if ($script:theme -eq 'night') { [string][char]0xE708 } else { [string][char]0xE706 }
     $controls.ThemeButton.ToolTip = if ($script:theme -eq 'night') { '当前为夜晚配色，点击切换白天' } else { '当前为白天配色，点击切换夜晚' }
+    $controls.ThemeButton.SetValue([Windows.Automation.AutomationProperties]::NameProperty, [string]$controls.ThemeButton.ToolTip)
     $controls.NotificationButton.Content = if ($script:desktopEnabled) { '桌面通知 开' } else { '桌面通知 关' }
     $controls.NotificationButton.Background = if ($script:desktopEnabled) { $script:window.Resources['NotificationOn'] } else { $script:window.Resources['NotificationOff'] }
   }
@@ -189,8 +191,7 @@ try {
     try { $json = Read-TextShared $modelFile } catch { return }
     $model = $json | ConvertFrom-Json
     $policy = Read-Json $notificationPolicyPath
-    if ($policy) { $script:desktopEnabled = $policy.desktopEnabled -ne $false }
-    elseif ($model.PSObject.Properties['desktopNotificationsEnabled']) { $script:desktopEnabled = $model.desktopNotificationsEnabled -ne $false }
+    $script:desktopEnabled = $policy -and ($policy.desktopEnabled -is [bool]) -and $policy.desktopEnabled
     Update-Chrome
     $now = Now-Ms
     if ($now - [double]$model.updatedAt -lt 15000) { $script:lastLiveAt = $now }
@@ -295,6 +296,11 @@ try {
   if ($SelfTest) {
     if ($script:cards.Count -ne 2) { throw 'Panel must show only running and unread fixture rows.' }
     if ($script:theme -ne 'day') { throw 'The default theme must be day.' }
+    if ($script:desktopEnabled) { throw 'Desktop notifications must default off, even with a legacy model.' }
+    foreach ($key in @('TitleForeground','MutedForeground','ButtonForeground','RunningForeground','UnreadForeground','TextForeground')) {
+      if ((Theme-Color $key) -ne '#FF000000') { throw ('Day text must be pure black: ' + $key) }
+    }
+    if ($controls.ThemeButton.Content -ne [string][char]0xE706) { throw 'Day theme button must show a sun symbol.' }
     $duplicateOutput = & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $PSCommandPath -StateRoot $StateRoot -InstanceKey $InstanceKey -ValidateOnly
     if ($LASTEXITCODE -ne 0 -or $duplicateOutput -notcontains 'instance=already-running') { throw 'Single-instance mutex failed' }
     $controls.CollapseButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
@@ -305,13 +311,13 @@ try {
     if ($script:window.Topmost -eq $initialPin) { throw 'Pin toggle failed' }
     $controls.PinButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     $controls.ThemeButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
-    if ($script:theme -ne 'night' -or (Read-Json $preferencesPath).theme -ne 'night') { throw 'Night theme must persist.' }
+    if ($script:theme -ne 'night' -or (Read-Json $preferencesPath).theme -ne 'night' -or $controls.ThemeButton.Content -ne [string][char]0xE708) { throw 'Night theme and moon symbol must persist.' }
     $controls.ThemeButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     if ($script:theme -ne 'day') { throw 'Day theme toggle failed.' }
     $controls.NotificationButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
-    if ((Read-Json $notificationPolicyPath).desktopEnabled -ne $false) { throw 'Desktop notification mute failed.' }
-    $controls.NotificationButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     if ((Read-Json $notificationPolicyPath).desktopEnabled -ne $true) { throw 'Desktop notification enable failed.' }
+    $controls.NotificationButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
+    if ((Read-Json $notificationPolicyPath).desktopEnabled -ne $false) { throw 'Desktop notification mute failed.' }
     $pendingRow = @((Read-Json (Join-Path $StateRoot 'model.json')).rows | Where-Object { $_.unread })[0]
     $click = New-Object Windows.Input.MouseButtonEventArgs ([Windows.Input.Mouse]::PrimaryDevice), 0, ([Windows.Input.MouseButton]::Left)
     $click.RoutedEvent = [Windows.UIElement]::MouseLeftButtonUpEvent
@@ -333,7 +339,7 @@ try {
     Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.2') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.3') { throw 'Panel heartbeat failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
     Write-Json $probe @{ revision = 1 }
@@ -375,7 +381,7 @@ try {
   })
   $script:window.Add_Closed({ $script:timer.Stop(); Save-Preferences; [Windows.Threading.Dispatcher]::CurrentDispatcher.InvokeShutdown() })
   $script:timer.Start()
-  $script:window.Show()
+  if (-not $StartHidden) { $script:window.Show() }
   Write-Heartbeat
   # Unlike ShowDialog, a dispatcher loop continues while the window is hidden.
   [Windows.Threading.Dispatcher]::Run()
