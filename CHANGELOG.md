@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.4 - 2026-10-22
+
+### Added / 新增
+
+- Added a right-aligned Notifyer status bar entry in VS Code to show/hide the Windows desktop panel with one click, with synchronized eye icons, tooltips and keyboard-accessible command.
+- 新增 VS Code 底部右侧 Notifyer 入口，一键显示／隐藏 Windows 桌面悬浮窗；眼睛图标和提示跨窗口同步，并提供可通过键盘调用的切换命令。
+- Pending visibility requests and helper acknowledgements keep rapid clicks and native title-bar hiding consistent. Startup respects a hide request made while the helper is launching.
+- 显隐请求及进程回执确保连续点击与小窗右上角隐藏后的状态一致，进程启动期间的隐藏操作不会被启动逻辑覆盖。
+
 ## 0.4.3 - 2026-10-22
 
 ### Changed / 调整

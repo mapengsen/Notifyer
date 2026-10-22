@@ -50,6 +50,7 @@ try {
   $script:desktopEnabled = $false
   $script:lastModel = ''
   $script:lastControl = if ($StartHidden) { (Read-Json (Join-Path $StateRoot 'control.json')).id } else { '' }
+  $script:requestedVisible = -not $StartHidden
   $script:lastResponse = 0
   $script:lastLiveAt = Now-Ms
   $script:cards = @()
@@ -91,7 +92,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.3'; theme = $script:theme; desktopEnabled = $script:desktopEnabled
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.4'; theme = $script:theme; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl
     }
   }
   function Update-Chrome {
@@ -124,7 +125,7 @@ try {
   })
   $controls.PinButton.Add_Click({ $script:window.Topmost = -not $script:window.Topmost; Update-Chrome; Save-Preferences })
   $controls.CollapseButton.Add_Click({ $script:collapsed = -not $script:collapsed; Update-Chrome; Save-Preferences })
-  $controls.HideButton.Add_Click({ $script:window.Hide(); Save-Preferences })
+  $controls.HideButton.Add_Click({ $script:window.Hide(); Write-Heartbeat; Save-Preferences })
   $controls.ThemeButton.Add_Click({
     $script:theme = if ($script:theme -eq 'day') { 'night' } else { 'day' }
     Apply-Theme; Save-Preferences; Refresh-Panel
@@ -179,8 +180,8 @@ try {
     $control = Read-Json (Join-Path $StateRoot 'control.json')
     if ($control -and $control.id -ne $script:lastControl) {
       $script:lastControl = $control.id
-      if ($control.type -eq 'hide') { $script:window.Hide() }
-      if ($control.type -eq 'show') { $script:window.Show() }
+      if ($control.type -eq 'hide') { $script:requestedVisible = $false; $script:window.Hide() }
+      if ($control.type -eq 'show') { $script:requestedVisible = $true; $script:window.Show() }
     }
     $response = Read-Json (Join-Path $StateRoot 'response.json')
     if ($response -and [double]$response.at -gt $script:lastResponse) {
@@ -337,9 +338,15 @@ try {
     if ($script:cards.Count -ne 1 -or $controls.UnreadCount.Text -ne '待查看  0') { throw 'Reviewed results must disappear immediately.' }
     if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot ('commands\' + $pendingRow.owners[0].windowId)) -Filter '*.json').Count -ne $focusFiles.Count) { throw 'Marking read must not activate a window.' }
     Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
+    # A rapid show/hide pair must leave the startup window hidden, and the
+    # heartbeat must acknowledge the final request so all status bars agree.
+    Write-Json (Join-Path $StateRoot 'control.json') @{ type = 'show'; id = 'test-show' }
+    Write-Json (Join-Path $StateRoot 'control.json') @{ type = 'hide'; id = 'test-hide' }
+    Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.3') { throw 'Panel heartbeat failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.4') { throw 'Panel heartbeat failed' }
+    if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
     Write-Json $probe @{ revision = 1 }
@@ -381,7 +388,7 @@ try {
   })
   $script:window.Add_Closed({ $script:timer.Stop(); Save-Preferences; [Windows.Threading.Dispatcher]::CurrentDispatcher.InvokeShutdown() })
   $script:timer.Start()
-  if (-not $StartHidden) { $script:window.Show() }
+  if ($script:requestedVisible) { $script:window.Show() }
   Write-Heartbeat
   # Unlike ShowDialog, a dispatcher loop continues while the window is hidden.
   [Windows.Threading.Dispatcher]::Run()

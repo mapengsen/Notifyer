@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -40,6 +40,11 @@
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "codexTaskCompanion.toggleFloatingWindow",
+        "title": "Notifyer: Toggle Floating Window",
+        "enablement": "isWindows"
+      },
       {
         "command": "codexTaskCompanion.toggleDesktopNotifications",
         "title": "Notifyer: Toggle Desktop Notifications"

@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
 import { SessionActivity, SessionActivityTracker } from "../sessionActivity";
-import { acknowledgementKey, aggregateSessions, applyActivity, atomicWriteJson, isPanelHealthy, StoredSession, WindowSnapshot } from "../floatingState";
+import { acknowledgementKey, aggregateSessions, applyActivity, atomicWriteJson, isPanelHealthy, panelVisibility, StoredSession, WindowSnapshot } from "../floatingState";
 
 const now = 1_800_000_000_000;
 test("panel watchdog treats a hidden panel as healthy and detects stale or missing helpers", () => {
@@ -15,6 +15,46 @@ test("panel watchdog treats a hidden panel as healthy and detects stale or missi
   assert.equal(isPanelHealthy({ ...heartbeat, updatedAt: now - 16000 }, now), false);
   assert.equal(isPanelHealthy({ ...heartbeat, pid: 0 }, now), false);
   assert.equal(isPanelHealthy({ ...heartbeat, updatedAt: now + 60000 }, now), false);
+});
+
+test("status bar follows the actual visibility of a healthy helper and treats an absent helper as hidden", () => {
+  const heartbeat = { pid: 1234, updatedAt: now, visible: true, version: "0.4.4" };
+  assert.equal(panelVisibility(heartbeat, undefined, now), true);
+  assert.equal(panelVisibility({ ...heartbeat, visible: false }, undefined, now), false);
+  assert.equal(panelVisibility({ ...heartbeat, updatedAt: now - 20000 }, undefined, now), false);
+  assert.equal(panelVisibility(undefined, undefined, now), false);
+});
+
+test("show and hide clicks update state before the native polling loop consumes them", () => {
+  const heartbeat = { pid: 1234, updatedAt: now, visible: false, version: "0.4.4", controlId: "old" };
+  const show = { type: "show" as const, id: "show", requestedAt: now };
+  assert.equal(panelVisibility(heartbeat, show, now), true);
+  assert.equal(panelVisibility(undefined, show, now), true);
+  assert.equal(panelVisibility({ ...heartbeat, visible: true }, { ...show, type: "hide", id: "hide" }, now), false);
+});
+
+test("native acknowledgement allows the close button to override a recently handled show request", () => {
+  const heartbeat = { pid: 1234, updatedAt: now, visible: false, version: "0.4.4", controlId: "show" };
+  assert.equal(panelVisibility(heartbeat, { type: "show", id: "show", requestedAt: now }, now), false);
+});
+
+test("an expired or future show request cannot leave the status bar stuck in the visible state", () => {
+  assert.equal(panelVisibility(undefined, { type: "show", id: "old", requestedAt: now - 11000 }, now), false);
+  assert.equal(panelVisibility(undefined, { type: "show", id: "future", requestedAt: now + 60000 }, now), false);
+});
+
+test("rapid alternating clicks from different windows share the last requested state", () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "notifyer-visibility-"));
+  try {
+    const file = path.join(folder, "control.json");
+    for (const [index, type] of (["show", "hide", "show", "hide"] as const).entries()) {
+      atomicWriteJson(file, { type, id: String(index), requestedAt: now });
+      const readFromFirstWindow = JSON.parse(fs.readFileSync(file, "utf8"));
+      const readFromSecondWindow = JSON.parse(fs.readFileSync(file, "utf8"));
+      assert.equal(panelVisibility(undefined, readFromFirstWindow, now), type === "show");
+      assert.equal(panelVisibility(undefined, readFromSecondWindow, now), type === "show");
+    }
+  } finally { fs.rmSync(folder, { recursive: true, force: true }); }
 });
 function activity(overrides: Partial<SessionActivity> = {}): SessionActivity {
   return { key: "codex:local:session", provider: "codex", sessionId: "session", turnId: "turn-1",

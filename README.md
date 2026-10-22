@@ -21,7 +21,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 | Codex and Claude Code | Main-task completion reminders with child-agent filtering. |
 | Terminal commands | Success/failure reminders; Python commands by default, with configurable command filtering. |
 | Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
-| Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. |
+| Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. Click Notifyer in the bottom-right VS Code status bar to show/hide it. |
 | Review workflow | Click a card to return to a matching window; mark a result reviewed to remove it. Review state survives restarts. |
 | Appearance and controls | Sun/moon theme icons, day by default, with pure black daytime text; desktop notifications off by default; pinning, dragging, collapse and hide. Preferences persist. |
 | Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
@@ -31,10 +31,11 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 1. Install or update **Notifyer** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion). For a remote project, enable it in the local VS Code UI. Each window to be monitored needs this version enabled in the same profile.
 2. After updating, run **Developer: Reload Window** in each open VS Code window. Start a Codex / Claude Code conversation, or run a Python command in an integrated terminal.
-3. On Windows, the floating window opens automatically. Click the sun/moon icon to change colors. Desktop notifications default to off; enable them with **桌面通知 关** or **Notifyer: Toggle Desktop Notifications** (available on all platforms). Click a conversation card to return to its matching window, and mark completed results reviewed when finished.
+3. On Windows, the floating window opens automatically. **Click Notifyer in the bottom-right VS Code status bar to show/hide it**, without opening the command palette. Click the sun/moon icon to change colors. Desktop notifications default to off; enable them with **桌面通知 关** or **Notifyer: Toggle Desktop Notifications** (available on all platforms). Click a conversation card to return to its matching window, and mark completed results reviewed when finished.
 
 | Command palette action | Purpose |
 | --- | --- |
+| `Notifyer: Toggle Floating Window` | Show/hide the Windows floating window, as with the Notifyer status bar entry. |
 | `Notifyer: Show Floating Window` | Open or restore the shared Windows floating window. |
 | `Notifyer: Hide Floating Window` | Hide the floating window. |
 | `Notifyer: Toggle Desktop Notifications` | Toggle desktop reminders on any platform. Defaults to off; explicit choices persist. |
@@ -80,7 +81,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 
 Only running and unread conversations appear. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
-Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. Reopen it with **Notifyer: Show Floating Window** in the command palette; **Notifyer: Hide Floating Window** hides it.
+Drag the header to move the panel. Click the sun/moon icon for day/night colors (day by default, with pure black text), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
 Click anywhere on a conversation card to activate its matching VS Code window, or focus it with Tab and press Enter/Space. Select the conversation within that window. When multiple windows match the same project, a window chooser appears because session logs do not reliably identify the originating window. Marking reviewed does not activate the window. Sessions without a known workspace path and child agents are excluded. The panel currently summarizes Codex / Claude conversations; terminal tasks continue using the existing notifications. The interface currently uses Chinese labels.
 
@@ -88,7 +89,7 @@ Set `codexTaskCompanion.floatingWindow.enabled` to `false` to stop panel collect
 
 Developer checks: `npm run test:unit`; on Windows, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-floating-panel.ps1` to validate native controls and generate a sample-data preview without opening a desktop window.
 
-If notifications work but the floating window is missing, run **Notifyer: Show Floating Window** in the connected VS Code window. The panel appears on the local Windows desktop. Since 0.4.1, helper heartbeats detect unexpected exits and trigger recovery with backoff. For startup failures, run **Notifyer: Show Diagnostics** and inspect `floatingWindow.helperHealthy`, `lastError`, `panelError`, `lastExit`, and **Output → Notifyer Floating Window**.
+If notifications work but the floating window is missing, click **Notifyer in the bottom-right status bar** of the connected VS Code window, or run **Notifyer: Show Floating Window**. After upgrading, run **Developer: Reload Window** once if the entry is missing. The panel appears on the local Windows desktop. Since 0.4.1, helper heartbeats detect unexpected exits and trigger recovery with backoff. For startup failures, run **Notifyer: Show Diagnostics** and inspect `floatingWindow.helperHealthy`, `lastError`, `panelError`, `lastExit`, and **Output → Notifyer Floating Window**.
 
 # If an issue occurs:
 
@@ -107,6 +108,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 22, 2026 (0.4.4)
+
+1. Added a bottom-right Notifyer status bar entry to show/hide the Windows floating window with one click.
+2. Eye icons and tooltips reflect shared visibility, including title-bar hiding, rapid clicks and actions from other VS Code windows.
+3. Added **Notifyer: Toggle Floating Window**; a missing helper is restarted when opening the panel.
 
 ## October 22, 2026 (0.4.3)
 

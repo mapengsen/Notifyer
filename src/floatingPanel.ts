@@ -6,7 +6,7 @@ import * as vscode from "vscode";
 import { workspacePathsOverlap } from "./core";
 import { areDesktopNotificationsEnabled, focusOriginatingWindow, getNotificationDiagnostics } from "./notify";
 import { SessionActivity } from "./sessionActivity";
-import { aggregateSessions, applyActivity, atomicWriteJson, digest, isPanelHealthy, PanelHeartbeat, StoredSession, WindowSnapshot } from "./floatingState";
+import { aggregateSessions, applyActivity, atomicWriteJson, digest, isPanelHealthy, panelVisibility, PanelHeartbeat, PanelVisibilityRequest, StoredSession, WindowSnapshot } from "./floatingState";
 
 export class FloatingPanel implements vscode.Disposable {
   private readonly windowId = randomUUID();
@@ -21,33 +21,29 @@ export class FloatingPanel implements vscode.Disposable {
   private launchAttempts = 0;
   private lastExit = "";
   private existingHelperDetected = false;
+  private readonly statusItem: vscode.StatusBarItem | undefined;
+  private readonly statusTimer: NodeJS.Timeout | undefined;
   private readonly output = vscode.window.createOutputChannel("Notifyer Floating Window");
 
   public constructor(private readonly context: vscode.ExtensionContext) {
     this.root = path.join(context.globalStorageUri.fsPath, "floating-panel");
     if (process.platform !== "win32") return;
+    this.statusItem = vscode.window.createStatusBarItem("codexTaskCompanion.floatingWindow", vscode.StatusBarAlignment.Right, 100);
+    this.statusItem.name = "Notifyer 桌面悬浮窗";
+    this.statusItem.command = "codexTaskCompanion.toggleFloatingWindow";
+    this.updateStatusBar();
+    this.statusItem.show();
+    this.statusTimer = setInterval(() => this.updateStatusBar(), 500);
     this.restore();
     this.configure();
     this.timer = setInterval(() => this.tick(), 2000);
     context.subscriptions.push(
-      vscode.commands.registerCommand("codexTaskCompanion.showFloatingWindow", async () => {
-        await vscode.workspace.getConfiguration("codexTaskCompanion.floatingWindow")
-          .update("enabled", true, vscode.ConfigurationTarget.Global);
-        this.enabled = true;
-        this.safe(() => this.publish());
-        this.show();
-        const deadline = Date.now() + 10_000;
-        while (!this.disposed && Date.now() < deadline && !isPanelHealthy(this.heartbeat()) && !this.existingHelperDetected) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        }
-        if (!this.disposed && !isPanelHealthy(this.heartbeat()) && !this.existingHelperDetected) {
-          const selected = await vscode.window.showWarningMessage(
-            "Notifyer 悬浮窗尚未启动，请查看诊断中的 floatingWindow 和启动日志。", "查看诊断",
-          );
-          if (selected) await vscode.commands.executeCommand("codexTaskCompanion.showDiagnostics");
-        }
-      }),
+      vscode.commands.registerCommand("codexTaskCompanion.showFloatingWindow", () => this.open()),
       vscode.commands.registerCommand("codexTaskCompanion.hideFloatingWindow", () => this.command("hide")),
+      vscode.commands.registerCommand("codexTaskCompanion.toggleFloatingWindow", () => {
+        if (this.isVisible()) this.command("hide");
+        else return this.open();
+      }),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("codexTaskCompanion.floatingWindow")) this.configure();
         for (const provider of ["codex", "claude"] as const) {
@@ -85,22 +81,29 @@ export class FloatingPanel implements vscode.Disposable {
     return { supported: process.platform === "win32", enabled: this.enabled, root: this.root,
       windowId: this.windowId, sessionCount: this.sessions.size, lastError: this.lastError, panelError,
       helper: this.heartbeat(), helperHealthy: isPanelHealthy(this.heartbeat()), lastLaunchAt: this.lastLaunchAt,
-      launchAttempts: this.launchAttempts, lastExit: this.lastExit, existingHelperDetected: this.existingHelperDetected };
+      launchAttempts: this.launchAttempts, lastExit: this.lastExit, existingHelperDetected: this.existingHelperDetected,
+      floatingWindowVisible: this.isVisible(), statusBarEntry: process.platform === "win32" };
   }
   public dispose(): void {
     this.disposed = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.statusTimer) clearInterval(this.statusTimer);
     if (this.publishTimer) clearTimeout(this.publishTimer);
     if (process.platform === "win32") this.safe(() => this.publish(true));
     this.output.dispose();
+    this.statusItem?.dispose();
   }
   private configure(): void {
     const wasEnabled = this.enabled;
     this.enabled = vscode.workspace.getConfiguration("codexTaskCompanion.floatingWindow").get("enabled", true);
     // A transient snapshot replacement error must not skip the UI launch.
     this.safe(() => this.publish(!this.enabled));
-    if (this.enabled && !wasEnabled) this.safe(() => this.show());
-    if (!this.enabled && wasEnabled) this.command("hide");
+    if (this.enabled && !wasEnabled) this.safe(() => {
+      const request = this.visibilityRequest();
+      // A hide click made while settings are being enabled must win.
+      if (request?.type !== "hide" || Date.now() - request.requestedAt >= 10_000) this.show();
+    });
+    if (!this.enabled && wasEnabled) this.safe(() => { this.command("hide"); });
   }
   private snapshots(): WindowSnapshot[] {
     const folder = path.join(this.root, "windows");
@@ -175,8 +178,49 @@ export class FloatingPanel implements vscode.Disposable {
       });
     }
   }
-  private command(type: "show" | "hide"): void {
-    this.safe(() => atomicWriteJson(path.join(this.root, "control.json"), { type, id: randomUUID() }));
+  private command(type: "show" | "hide"): PanelVisibilityRequest {
+    const request: PanelVisibilityRequest = { type, id: randomUUID(), requestedAt: Date.now() };
+    atomicWriteJson(path.join(this.root, "control.json"), request);
+    this.updateStatusBar();
+    return request;
+  }
+  private async open(): Promise<void> {
+    const request = this.command("show");
+    if (!this.enabled) {
+      await vscode.workspace.getConfiguration("codexTaskCompanion.floatingWindow")
+        .update("enabled", true, vscode.ConfigurationTarget.Global);
+      this.enabled = true;
+    }
+    if (this.visibilityRequest()?.type === "hide") return;
+    this.safe(() => this.publish());
+    if (!isPanelHealthy(this.heartbeat())) this.launch();
+    const deadline = Date.now() + 10_000;
+    while (!this.disposed && Date.now() < deadline && !isPanelHealthy(this.heartbeat()) && !this.existingHelperDetected) {
+      if (this.visibilityRequest()?.type === "hide") return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    }
+    if (!this.disposed && !isPanelHealthy(this.heartbeat()) && !this.existingHelperDetected
+      && this.visibilityRequest()?.id === request.id) {
+      const selected = await vscode.window.showWarningMessage(
+        "Notifyer 悬浮窗尚未启动，请查看诊断中的 floatingWindow 和启动日志。", "查看诊断",
+      );
+      if (selected) await vscode.commands.executeCommand("codexTaskCompanion.showDiagnostics");
+    }
+  }
+  private visibilityRequest(): PanelVisibilityRequest | undefined {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(this.root, "control.json"), "utf8")) as PanelVisibilityRequest;
+    } catch { return undefined; }
+  }
+  private isVisible(): boolean {
+    return panelVisibility(this.heartbeat(), this.visibilityRequest());
+  }
+  private updateStatusBar(): void {
+    if (!this.statusItem || this.disposed) return;
+    const visible = this.isVisible();
+    this.statusItem.text = `${visible ? "$(eye)" : "$(eye-closed)"} Notifyer`;
+    this.statusItem.tooltip = visible ? "Notifyer：点击隐藏桌面悬浮窗" : "Notifyer：点击显示桌面悬浮窗";
+    this.statusItem.accessibilityInformation = { label: this.statusItem.tooltip, role: "button" };
   }
   private show(): void {
     this.command("show");

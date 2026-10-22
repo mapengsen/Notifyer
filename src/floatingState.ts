@@ -27,6 +27,25 @@ export interface PanelHeartbeat {
   updatedAt: number;
   visible: boolean;
   version: string;
+  controlId?: string;
+}
+export interface PanelVisibilityRequest {
+  type: "show" | "hide";
+  id: string;
+  requestedAt: number;
+}
+export function panelVisibility(
+  heartbeat: PanelHeartbeat | undefined,
+  request: PanelVisibilityRequest | undefined,
+  now = Date.now(),
+): boolean {
+  // Reflect a click immediately, including clicks originating in another window.
+  // The helper's acknowledgement takes over as soon as it consumes the request.
+  if (request && request.id !== heartbeat?.controlId && ["show", "hide"].includes(request.type)
+    && now - request.requestedAt >= -1000 && now - request.requestedAt < 10_000) {
+    return request.type === "show";
+  }
+  return isPanelHealthy(heartbeat, now) && heartbeat!.visible;
 }
 export function isPanelHealthy(heartbeat: PanelHeartbeat | undefined, now = Date.now()): boolean {
   // A hidden panel is healthy too: it must never be reopened by the watchdog.
