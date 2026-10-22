@@ -21,7 +21,9 @@
     <SolidColorBrush x:Key="CardBorder" Color="#D6E0EC"/>
     <SolidColorBrush x:Key="UnreadBorder" Color="#E0BC7E"/>
     <SolidColorBrush x:Key="TextForeground" Color="#000000"/>
-    <SolidColorBrush x:Key="MetadataForeground" Color="#D02020"/>
+    <SolidColorBrush x:Key="MetadataForeground" Color="#707070"/>
+    <SolidColorBrush x:Key="ProjectRunningForeground" Color="#1676D2"/>
+    <SolidColorBrush x:Key="ProjectUnreadForeground" Color="#B98000"/>
     <SolidColorBrush x:Key="Accent" Color="#38B49A"/>
     <SolidColorBrush x:Key="StatusIndicator" Color="#1676D2"/>
     <SolidColorBrush x:Key="ScrollThumb" Color="#ACBCD0"/>

@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.15 - 2026-10-23
+
+### Changed / 调整
+
+- Lead each floating card with the real project name in bold, at the body font size. Running projects use blue and unread projects use yellow in both themes.
+- 卡片首行改为真实项目名并加粗，字号与正文相同；运行中显示蓝色，待查看显示黄色，昼夜配色均支持。
+- Move provider/status text below the prompt in gray, two font sizes smaller than the body. Font controls preserve the size difference; long project names stay on one line with ellipsis.
+- 提供方及状态移至正文下方，使用灰色，比正文小 2 号；调整字号时保持差值，长项目名单行省略。
+- Updated native layout checks and day/night previews, including a long project name. Session navigation and review behavior are unchanged.
+- 更新原生布局验证及昼夜预览，覆盖较长项目名；会话跳转及已查看逻辑保持不变。
+
 ## 0.4.14 - 2026-10-23
 
 ### Changed / 调整

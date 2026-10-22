@@ -109,7 +109,8 @@ try {
     ButtonForeground='#CFD8E6'; ButtonBackground='#243249'; PinBackground='#245547'
     NotificationOn='#245547'; NotificationOff='#573B43'; RunningBackground='#1A2D41'; RunningForeground='#83C9FF'
     UnreadBackground='#352F27'; UnreadForeground='#F2C685'; CardBackground='#1A273B'; CardBorder='#2C3C53'
-    UnreadBorder='#756044'; TextForeground='#ECF2FC'; MetadataForeground='#FF6262'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
+    UnreadBorder='#756044'; TextForeground='#ECF2FC'; MetadataForeground='#929292'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
+    ProjectRunningForeground='#83C9FF'; ProjectUnreadForeground='#F2C685'
   }
 
   $workArea = [Windows.SystemParameters]::WorkArea
@@ -217,7 +218,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.14'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.15'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -435,7 +436,7 @@ try {
         'failed' { '出错 · 待查看' }
         default { '状态待确认' }
       }
-      $color = if ($unread) { Theme-Color 'UnreadForeground' } else { Theme-Color 'RunningForeground' }
+      $color = if ($unread) { Theme-Color 'ProjectUnreadForeground' } else { Theme-Color 'ProjectRunningForeground' }
       $card = New-Object Windows.Controls.Border
       $card.Background = Theme-Color 'CardBackground'
       $card.BorderBrush = if ($unread) { Theme-Color 'UnreadBorder' } else { Theme-Color 'CardBorder' }
@@ -464,14 +465,19 @@ try {
       $stack = New-Object Windows.Controls.StackPanel
       $card.Child = $stack
       $provider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
+      $owners = @($row.owners)
+      $owner = $owners | Where-Object { $_.online } | Select-Object -First 1
+      $label = if ($owner) { Project-Name $owner.label } elseif ($owners.Count) { Project-Name $owners[0].label } else { '未知项目' }
       $statusLine = New-Object Windows.Controls.Grid
       $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $statusLine.ColumnDefinitions[0].Width = 'Auto'
       $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $null = $statusLine.Children.Add((Status-Indicator ($status -eq 'running')))
-      $statusText = Text-Element ($provider + ' · ' + $statusLabel) $color ($script:fontSize - 2)
-      [Windows.Controls.Grid]::SetColumn($statusText, 1)
-      $null = $statusLine.Children.Add($statusText)
+      $projectText = Text-Element $label $color $script:fontSize
+      $projectText.FontWeight = 'Bold'
+      $projectText.ToolTip = $label
+      [Windows.Controls.Grid]::SetColumn($projectText, 1)
+      $null = $statusLine.Children.Add($projectText)
       $null = $stack.Children.Add($statusLine)
       $title = Clean-SessionTitle ([string]$row.title)
       if (-not $title) { $title = '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
@@ -479,17 +485,13 @@ try {
       $heading.Margin = '0,5,0,5'
       $heading.ToolTip = $title
       $null = $stack.Children.Add($heading)
-      $owners = @($row.owners)
-      $owner = $owners | Where-Object { $_.online } | Select-Object -First 1
-      $label = if ($owner) { Project-Name $owner.label } elseif ($owners.Count) { Project-Name $owners[0].label } else { '未知项目' }
       $metadata = New-Object Windows.Controls.Grid
       $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $metadata.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
       $metadata.ColumnDefinitions[1].Width = 'Auto'
       $detail = New-Object Windows.Controls.StackPanel
-      $ownerText = Text-Element $label (Theme-Color 'MetadataForeground') $heading.FontSize
-      $ownerText.ToolTip = $label
-      $null = $detail.Children.Add($ownerText)
+      $statusText = Text-Element ($provider + ' · ' + $statusLabel) (Theme-Color 'MetadataForeground') ($script:fontSize - 2)
+      $null = $detail.Children.Add($statusText)
       $null = $metadata.Children.Add($detail)
       if ($unread) {
         $read = New-Object Windows.Controls.Button
@@ -526,13 +528,21 @@ try {
     if ($script:cards[0].Child.Children[1].Text -ne '为 Notifyer 添加桌面会话悬浮窗' -or $script:cards[1].Child.Children[1].Text -ne '训练模型并验证精度') { throw 'Existing cached titles must render without attachment decorations.' }
     if ($script:window.Width -ne 280 -or $script:window.Height -ne 440) { throw 'Default geometry must be 280 x 440 DIP.' }
     if ($script:theme -ne 'night' -or $controls.ThemeButton.Content -ne [string][char]0xE708) { throw 'The default theme must be night with a moon symbol.' }
-    function Assert-MetadataStyle {
+    function Assert-CardLayout {
       foreach ($card in $script:cards) {
         $heading = $card.Child.Children[1]
         if ($heading.FontSize -ne $script:fontSize) { throw 'The selected font size must apply to conversation titles immediately.' }
-        if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Only the project name may appear below the conversation title.' }
+        $project = $card.Child.Children[0].Children[1]
+        $row = $card.Tag.row
+        $expectedProjectColor = if ($row.unread) { Theme-Color 'ProjectUnreadForeground' } else { Theme-Color 'ProjectRunningForeground' }
+        $expectedProject = Project-Name $row.owners[0].label
+        if ($project.Text -ne $expectedProject -or $project.FontSize -ne $heading.FontSize -or $project.FontWeight -ne [Windows.FontWeights]::Bold -or $project.Foreground.ToString() -ne $expectedProjectColor) { throw 'The first line must show the bold project name in the running/unread color at the body font size.' }
+        if ($project.TextWrapping -ne 'NoWrap' -or $project.TextTrimming -ne 'CharacterEllipsis') { throw 'Long project names must stay on one line with an ellipsis.' }
+        if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Only the provider and status may appear below the conversation title.' }
+        $expectedProvider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
+        $expectedStatus = if ($row.status -eq 'running') { '运行中' } elseif ($row.status -eq 'failed') { '出错 · 待查看' } else { '待查看' }
         foreach ($line in $card.Child.Children[2].Children[0].Children) {
-          if ($line.FontSize -ne $heading.FontSize -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground')) { throw 'The project name must match the title font size and use the red metadata color.' }
+          if ($line.Text -ne ($expectedProvider + ' · ' + $expectedStatus) -or $line.FontSize -ne $heading.FontSize - 2 -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground') -or $line.FontWeight -ne [Windows.FontWeights]::Normal) { throw 'The final line must show the provider and status in gray, two font sizes below the body.' }
         }
       }
     }
@@ -543,10 +553,10 @@ try {
     $controls.FontIncreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
     $controls.FontIncreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
     if ($script:fontSize -ne 16 -or (Read-Json $preferencesPath).fontSize -ne 16) { throw 'Increasing the font must update and save immediately.' }
-    Assert-MetadataStyle
+    Assert-CardLayout
     $controls.FontDecreaseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
     if ($script:fontSize -ne 15 -or (Read-Json $preferencesPath).fontSize -ne 15) { throw 'Decreasing the font must update and save immediately.' }
-    Assert-MetadataStyle
+    Assert-CardLayout
     Change-FontSize 100
     if ($script:fontSize -ne 24 -or $controls.FontIncreaseButton.IsEnabled) { throw 'The font maximum must be enforced.' }
     $controls.CollapseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
@@ -556,9 +566,8 @@ try {
     Change-FontSize -100
     if ($script:fontSize -ne 10 -or $controls.FontDecreaseButton.IsEnabled) { throw 'The font minimum must be enforced.' }
     Change-FontSize 4
-    Assert-MetadataStyle
-    if ((Theme-Color 'MetadataForeground') -ne '#FFFF6262') { throw 'Night metadata must be red.' }
-    Assert-MetadataStyle
+    Assert-CardLayout
+    if ((Theme-Color 'MetadataForeground') -ne '#FF929292' -or (Theme-Color 'ProjectRunningForeground') -ne '#FF83C9FF' -or (Theme-Color 'ProjectUnreadForeground') -ne '#FFF2C685') { throw 'Night cards must use gray status, blue running projects and yellow unread projects.' }
     $controls.ThemeButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
     if ($script:window.FindName('Footer') -or $script:window.FindName('ConnectionText')) { throw 'The compact layout must omit persistent explanation text.' }
     if ((Compact-OwnerLabel 'DNAKit [SSH: test] · ssh-remote') -ne 'DNAKit [SSH: test]') { throw 'SSH implementation labels must not appear.' }
@@ -623,8 +632,8 @@ try {
     $boundary.status = 'running'; $boundary.unread = $false; $boundary.startedAt = $cutoff
     if (@(Get-VisibleRows @($boundary) ($cutoff + 1) $false).Count -ne 1) { throw 'A fresh turn must be visible after an old turn was hidden.' }
     if ($script:theme -ne 'day') { throw 'The day theme must remain selectable.' }
-    if ((Theme-Color 'MetadataForeground') -ne '#FFD02020') { throw 'Day metadata must also be red.' }
-    Assert-MetadataStyle
+    if ((Theme-Color 'MetadataForeground') -ne '#FF707070' -or (Theme-Color 'ProjectRunningForeground') -ne '#FF1676D2' -or (Theme-Color 'ProjectUnreadForeground') -ne '#FFB98000') { throw 'Day cards must use gray status, blue running projects and yellow unread projects.' }
+    Assert-CardLayout
     if ($script:desktopEnabled) { throw 'Desktop notifications must default off, even with a legacy model.' }
     foreach ($key in @('TitleForeground','MutedForeground','ButtonForeground','RunningForeground','UnreadForeground','TextForeground')) {
       if ((Theme-Color $key) -ne '#FF000000') { throw ('Day text must be pure black: ' + $key) }
@@ -694,7 +703,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.14' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.15' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

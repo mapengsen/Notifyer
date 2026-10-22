@@ -23,7 +23,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 | Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
 | Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. Click Notifyer in the bottom-right VS Code status bar to show/hide it. |
 | Review workflow | Click a card to open its exact session and remove the pending result after confirmed selection. Window activation alone never clears it. Manual review and persistence remain available. |
-| Appearance and controls | Sun/moon theme icons, night by default; red project name matches the title size. Desktop notifications default off; resizing, pinning, dragging, collapse and hide persist. |
+| Appearance and controls | Sun/moon theme icons, night by default; bold project names lead each card, blue while running and yellow when unread. Gray provider/status text appears below the prompt, two font sizes smaller. Desktop notifications default off; resizing, pinning, dragging, collapse and hide persist. |
 | Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
 | Reliability and diagnostics | Silent historical baseline, completion deduplication across windows, helper recovery, test notification and diagnostic commands. |
 
@@ -70,11 +70,11 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 Conversation titles omit attachment transport markers, such as pasted-content tags, image paths, dimensions and coordinate hints. Readable text is retained; image-only/file-only prompts show “图片消息”/“附件消息”. Existing cached titles are also cleaned for display, without modifying original messages or logs.
 
-Use **A− / A+** in the header to decrease/increase text size immediately, one step per click (10–24 DIP). The default conversation text is now 14 DIP, up from 12; title text, red project names, status text and counts adjust together. The selected size is saved across reopening and restarting. These controls are separate from the collapse button.
+Use **A− / A+** in the header to decrease/increase text size immediately, one step per click (10–24 DIP). The default conversation text is now 14 DIP, up from 12; title text, bold project names, status text and counts adjust together; the gray status line stays two font sizes below the body. The selected size is saved across reopening and restarting. These controls are separate from the collapse button.
 
 Running status requires activity observed after startup. A historical scan reconciles the final state silently; it does not turn old unfinished logs into active work. Claude API errors, interruption markers and truncated/terminal response stop reasons hide the running card until real activity resumes. When no explicit stop is logged, the quiet timeout remains a fallback; the 500-minute limit also remains in place. Prompt wording such as “resume after a cut-off” alone is not evidence that a task has stopped.
 
-The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Only the project name appears in red below the conversation title, at the same font size; SSH host details, runtime and timestamps are hidden. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
+The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Each card starts with the bold project name at the body font size, blue while running and yellow when awaiting review. The one-line prompt follows, with gray provider/status text beneath it, two font sizes smaller. SSH host details, runtime and timestamps are hidden. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
 
 ![Default night colors with sample data](image/floating-panel-night-preview.png)
 
@@ -89,7 +89,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 
 The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
-Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime titles remain black and metadata red), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
+Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime prompts remain black, project names retain their status color and the footer stays gray), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
 Click a card to return to its matching VS Code window and open the specific Codex/Claude conversation by session ID. A confirmed selection removes only that completed turn's pending card. Merely activating a window or another conversation never clears reminders. Navigation errors, unsupported selectors, mismatched environments and uncertain selection keep the reminder and manual checkmark available. Claude does not expose arbitrary webview session IDs, so sidebar/already-active Claude surfaces may require manual review; titles are never used to guess identity. New results arriving during navigation remain unread. If multiple windows match, choose the intended window first. Unknown workspace ownership and child agents remain excluded.
 
@@ -116,6 +116,14 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 23, 2026 (0.4.15)
+
+1. Lead cards with the bold project name, blue while running and yellow for unread results; move provider/status below the prompt in gray, two font sizes smaller.
+
+## October 23, 2026 (0.4.14)
+
+1. Open the clicked conversation by session ID and acknowledge only its completed turn after confirmed selection; preserve uncertain or failed navigation and other conversations.
 
 ## October 22, 2026 (0.4.13)
 
