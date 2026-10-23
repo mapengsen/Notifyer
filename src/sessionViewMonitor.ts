@@ -2,11 +2,12 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { StoredSession } from "./floatingState";
 import { ProviderStateReader } from "./providerStateReader";
-import { claudeUnread, ClaudeReadTracker, isPendingResult, matchingResult, selectedClaudeSession, viewedResult, ViewedResult } from "./sessionSelection";
+import { claudeUnread, ClaudeReadTracker, codexUnread, isPendingResult, matchingResult, NativeReadTracker, selectedClaudeSession, viewedResult, ViewedResult } from "./sessionSelection";
 
 export class SessionViewMonitor implements vscode.Disposable {
   private readonly reader = new ProviderStateReader();
   private readonly nativeReads = new ClaudeReadTracker();
+  private readonly codexReads = new NativeReadTracker("codex");
   private readonly subscriptions: vscode.Disposable[] = [];
   private readonly workspaceDatabase: string | undefined;
   private readonly globalDatabase: string;
@@ -19,6 +20,8 @@ export class SessionViewMonitor implements vscode.Disposable {
   private lastError = "";
   private selectedSessionId = "";
   private acknowledgements = 0;
+  private codexReadStateAvailable = false;
+  private lastViewed: { provider: string; sessionId: string; source: string } | undefined;
 
   public constructor(context: vscode.ExtensionContext, private readonly sessions: () => readonly StoredSession[],
     private readonly acknowledge: (result: ViewedResult) => void) {
@@ -37,7 +40,8 @@ export class SessionViewMonitor implements vscode.Disposable {
     for (const subscription of this.subscriptions) subscription.dispose();
   }
   public getDiagnostics(): Record<string, unknown> {
-    return { sqliteSupported: this.reader.supported, selectedSessionId: this.selectedSessionId, acknowledgements: this.acknowledgements, lastError: this.lastError };
+    return { sqliteSupported: this.reader.supported, selectedSessionId: this.selectedSessionId, acknowledgements: this.acknowledgements,
+      codexReadStateAvailable: this.codexReadStateAvailable, lastViewed: this.lastViewed, lastError: this.lastError };
   }
   public confirms(session: StoredSession): boolean {
     if (!vscode.window.state.focused || session.provider !== "claude") return false;
@@ -80,18 +84,24 @@ export class SessionViewMonitor implements vscode.Disposable {
       || input.uri.scheme !== "openai-codex" || input.uri.authority !== "route") return;
     return /^\/(?:local|remote)\/([a-zA-Z0-9_-]+)$/.exec(input.uri.path)?.[1];
   }
-  private mark(result: ViewedResult): void {
+  private mark(result: ViewedResult, source = "selected-editor"): void {
     if (this.acknowledged.has(result.acknowledgement)) return;
     this.acknowledge(result);
     this.acknowledged.add(result.acknowledgement);
     this.acknowledgements += 1;
+    const session = this.sessions().find((candidate) => candidate.key === result.key);
+    if (session) this.lastViewed = { provider: session.provider, sessionId: session.sessionId, source };
   }
   private poll(): void {
     try {
       const sessions = this.sessions();
-      const global = this.reader.read(this.globalDatabase, ["Anthropic.claude-code"]);
+      const global = this.reader.read(this.globalDatabase, ["Anthropic.claude-code", "openai.chatgpt"]);
       const unread = claudeUnread(global?.["Anthropic.claude-code"], this.workspacePaths());
-      for (const result of this.nativeReads.consume(unread, sessions)) this.mark(result);
+      for (const result of this.nativeReads.consume(unread, sessions)) this.mark(result, "claude-native-read");
+      const codexState = global?.["openai.chatgpt"];
+      const codexPending = codexUnread(codexState);
+      this.codexReadStateAvailable = Boolean(codexPending);
+      for (const result of this.codexReads.consume(codexPending, sessions)) this.mark(result, "codex-native-read");
       if (!vscode.window.state.focused) return;
       const active = vscode.window.tabGroups.activeTabGroup.activeTab;
       const codexId = this.codexSession(active);

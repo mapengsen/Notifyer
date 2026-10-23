@@ -69,6 +69,14 @@ export function claudeUnread(globalState: unknown, workspacePaths: readonly stri
   return result;
 }
 
+/** In the VS Code provider, "local" denotes the connected provider's execution environment. */
+export function codexUnread(globalState: unknown, hostId = "local"): Set<string> | undefined {
+  const atoms = decode(decode(globalState)["persisted-atom-state"]);
+  const entries = object(atoms["unread-thread-ids-by-host-v1"])[hostId];
+  if (!Array.isArray(entries) || !entries.every((id) => typeof id === "string" && sessionIdPattern.test(id))) return;
+  return new Set(entries as string[]);
+}
+
 export function viewedResult(session: StoredSession): ViewedResult {
   return { key: session.key, turnId: session.turnId, acknowledgement: acknowledgementKey(session), status: session.status };
 }
@@ -83,22 +91,26 @@ export function isPendingResult(session: StoredSession | undefined, result?: Vie
 }
 
 /** Native read transitions are keyed by session; retain the observed turn too. */
-export class ClaudeReadTracker {
+export class NativeReadTracker {
   private previous: Map<string, ViewedResult | undefined> | undefined;
+  public constructor(private readonly provider: StoredSession["provider"]) {}
   public consume(unread: Set<string> | undefined, sessions: readonly StoredSession[]): ViewedResult[] {
     if (!unread) return []; // Missing/corrupt state is never an empty unread list.
     const next = new Map<string, ViewedResult | undefined>();
     for (const id of unread) {
-      const session = matchingResult(sessions, "claude", id);
+      const session = matchingResult(sessions, this.provider, id);
       next.set(id, this.previous?.get(id) ?? (isPendingResult(session) ? viewedResult(session) : undefined));
     }
     const results: ViewedResult[] = [];
     for (const [id, observed] of this.previous ?? []) {
       if (next.has(id) || !observed) continue;
-      const latest = matchingResult(sessions, "claude", id);
+      const latest = matchingResult(sessions, this.provider, id);
       if (isPendingResult(latest, observed)) results.push(observed);
     }
     this.previous = next;
     return results;
   }
+}
+export class ClaudeReadTracker extends NativeReadTracker {
+  public constructor() { super("claude"); }
 }

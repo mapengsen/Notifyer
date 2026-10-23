@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.19 - 2026-10-23
+
+### Fixed / 修复
+
+- Synchronize Codex sidebar review state using the provider's per-conversation unread-to-read transitions, alongside existing custom-editor URI selection. Sidebar conversations do not appear as editor tabs and were previously missed.
+- 补上 Codex 侧边栏的按会话已读同步；侧边栏对话不属于编辑区标签，之前仅核对自定义编辑器 URI 时会漏掉。
+- Capture the pending result's provider, session, turn and completion status before a read transition. Other conversations, newer results, ambiguous sources, unavailable state and an already-empty initial unread list do not acknowledge a result.
+- 已读变化前保存待查看结果的提供方、会话、轮次及完成状态；其他对话、新结果、来源不唯一、状态不可用或初始未读列表为空时，均不自动清除。
+- Read only the required Codex namespace from the current profile's VS Code state database. Diagnostics now report native read-state availability and the last reviewed conversation/source.
+- 仅读取当前用户配置下 VS Code 状态库所需的 Codex 命名空间；诊断补充原生已读状态是否可用，以及最近同步的会话及来源。
+
 ## 0.4.18 - 2026-10-23
 
 ### Fixed / 修复

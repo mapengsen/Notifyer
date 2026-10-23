@@ -5,7 +5,7 @@ import * as path from "node:path";
 import test from "node:test";
 import { acknowledgementKey, StoredSession } from "../floatingState";
 import { ProviderStateReader } from "../providerStateReader";
-import { claudeUnread, ClaudeReadTracker, isPendingResult, matchingResult, selectedClaudeSession, viewedResult } from "../sessionSelection";
+import { claudeUnread, ClaudeReadTracker, codexUnread, isPendingResult, matchingResult, NativeReadTracker, selectedClaudeSession, viewedResult } from "../sessionSelection";
 
 const viewType = "mainThreadWebview-claudeVSCodePanel";
 function fixture() {
@@ -115,6 +115,41 @@ test("session and turn identities prevent reading duplicate sources or newer res
   assert.equal(isPendingResult({ ...a, status: "running" }, result), false);
   assert.equal(isPendingResult({ ...a, status: "failed" }, result), false);
   assert.equal(result.acknowledgement, acknowledgementKey(a));
+});
+
+function codexState(ids: unknown = ["session-a", "session-b"]) {
+  return { "persisted-atom-state": { "unread-thread-ids-by-host-v1": { local: ids, other: ["session-c"] } } };
+}
+const codexSession = (id = "session-a", changes: Partial<StoredSession> = {}) => session(id,
+  { provider: "codex", key: `codex:file:///work/${id}.jsonl:${id}`, ...changes });
+
+test("Codex native unread state uses the exact execution host and rejects malformed/missing data", () => {
+  assert.deepEqual(codexUnread(codexState()), new Set(["session-a", "session-b"]));
+  assert.deepEqual(codexUnread(codexState(), "other"), new Set(["session-c"]));
+  assert.deepEqual(codexUnread(codexState([])), new Set());
+  assert.equal(codexUnread(codexState("bad")), undefined);
+  assert.equal(codexUnread(codexState(["../invalid"])), undefined);
+  assert.equal(codexUnread(codexState(), "missing"), undefined);
+  assert.equal(codexUnread(undefined), undefined);
+});
+
+test("Codex sidebar read transitions acknowledge only the observed Codex result, not the same-ID Claude result", () => {
+  const tracker = new NativeReadTracker("codex");
+  const a = codexSession(), b = codexSession("session-b"), claude = session();
+  assert.deepEqual(tracker.consume(codexUnread(codexState()), [a, b, claude]), []);
+  assert.deepEqual(tracker.consume(codexUnread(codexState(["session-b"])), [a, b, claude]), [viewedResult(a)]);
+});
+
+test("Codex native read transitions preserve a newer turn, revised status, ambiguous source and unread baseline", () => {
+  for (const changed of [codexSession("session-a", { turnId: "new-turn" }), codexSession("session-a", { status: "failed" })]) {
+    const tracker = new NativeReadTracker("codex");
+    tracker.consume(new Set(["session-a"]), [codexSession()]);
+    assert.deepEqual(tracker.consume(new Set(), [changed]), []);
+  }
+  const tracker = new NativeReadTracker("codex"), a = codexSession();
+  assert.deepEqual(tracker.consume(new Set(), [a]), []);
+  tracker.consume(new Set(["session-a"]), [a, { ...a, key: "copied-source" }]);
+  assert.deepEqual(tracker.consume(new Set(), [a]), []);
 });
 
 test("provider storage reader uses readonly SQLite and reads only named namespaces, case-insensitively", () => {

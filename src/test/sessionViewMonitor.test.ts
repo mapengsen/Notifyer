@@ -69,6 +69,9 @@ function monitorFixture(initialUnread: readonly string[] = ["session-a", "sessio
     () => sessions, (result: ViewedResult) => read.push(result));
   const flush = () => { const callback = scheduled; scheduled = undefined; callback?.(); };
   return { api, read, monitor, setUnread, flush,
+    setCodexState: (ids: unknown) => write(globalFile, { "openai.chatgpt": {
+      "persisted-atom-state": { "unread-thread-ids-by-host-v1": { local: ids } },
+    } }),
     focus: () => { api.window.state.focused = true; windowChanged({ focused: true }); flush(); },
     select: (index: number) => { group.activeTab = tabs[index]; tabsChanged(); },
     selectCodex: (id: string) => {
@@ -177,5 +180,32 @@ test("native read synchronization works while the sidebar or another surface hol
     f.setUnread(["session-b"]);
     f.tick();
     assert.deepEqual(f.read.map((result) => result.key), ["claude:file:///work/session-a.jsonl:session-a"]);
+  } finally { f.close(); }
+});
+
+test("reading a completed Codex sidebar conversation clears only that result without a custom-editor tab change", () => {
+  const f = monitorFixture();
+  try {
+    for (const index of [0, 1]) f.replace(index, { provider: "codex", key: `codex:file:///work/session-${index ? "b" : "a"}.jsonl:session-${index ? "b" : "a"}` });
+    f.setCodexState(["session-a", "session-b"]); f.tick();
+    f.setCodexState(["session-b"]); f.tick();
+    assert.deepEqual(f.read.map((result) => result.key), ["codex:file:///work/session-a.jsonl:session-a"]);
+    assert.equal(f.monitor.getDiagnostics().codexReadStateAvailable, true);
+    assert.equal(f.monitor.getDiagnostics().lastViewed.source, "codex-native-read");
+    f.tick();
+    assert.equal(f.read.length, 1);
+  } finally { f.close(); }
+});
+
+test("unavailable Codex read state and a later completion never consume another turn's read signal", () => {
+  const f = monitorFixture();
+  try {
+    f.replace(1, { provider: "codex", key: "codex:file:///work/session-b.jsonl:session-b" });
+    f.setCodexState(["session-b"]); f.tick();
+    f.setCodexState("corrupt"); f.tick();
+    assert.equal(f.monitor.getDiagnostics().codexReadStateAvailable, false);
+    f.replace(1, { turnId: "later-result", updatedAt: 1_800_000_000_000 });
+    f.setCodexState([]); f.tick();
+    assert.equal(f.read.length, 0);
   } finally { f.close(); }
 });
