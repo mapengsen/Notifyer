@@ -7,6 +7,7 @@ import {
   normalizeTimestamp,
   normalizeTokenUsage,
   projectNameFromCwd,
+  remoteHomeFromWorkspacePath,
   shouldNotifySessionCompletion,
   truncate,
   workspacePathsOverlap,
@@ -54,6 +55,7 @@ interface CompletionPayload {
 export class CodexSessionMonitor implements vscode.Disposable {
   public constructor(private readonly onActivity: (activity: SessionActivity, remove?: boolean) => void = () => {}) {}
   private readonly trackers = new Map<string, Tracker>();
+  private readonly baselineFileSizes = new Map<string, number>();
   private readonly processedEventIds = new Set<string>();
   private pollTimer: NodeJS.Timeout | undefined;
   private pollInFlight = false;
@@ -74,6 +76,7 @@ export class CodexSessionMonitor implements vscode.Disposable {
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = undefined;
     this.trackers.clear();
+    this.baselineFileSizes.clear();
     this.processedEventIds.clear();
     this.sessionsRootUris = [];
     this.skippedChildCount = 0;
@@ -116,7 +119,12 @@ export class CodexSessionMonitor implements vscode.Disposable {
       if (!this.sessionsRootUris.length) return;
       const seenFiles = new Set<string>();
       for (const root of this.sessionsRootUris) {
-        const files = await collectRecentSessionFiles(root, this.getLookbackDays());
+        const files = await collectRecentSessionFiles(root, this.getLookbackDays(), (uri, size, recent) => {
+          const key = uri.toString();
+          // Remember unread historical prefixes without downloading inactive logs.
+          // If an old conversation resumes later, only its appended records are live.
+          if (!this.trackers.has(key) && (!emitNotifications || !recent)) this.baselineFileSizes.set(key, size);
+        });
         for (const file of files) {
           const key = file.toString();
           if (seenFiles.has(key)) continue;
@@ -174,6 +182,15 @@ export class CodexSessionMonitor implements vscode.Disposable {
       tracker.lastCompletedTokenUsage = undefined;
     }
 
+    const baselineBytes = this.baselineFileSizes.get(tracker.uri.toString()) ?? 0;
+    if (tracker.offset === 0 && emitNotifications && baselineBytes > 0 && bytes.length >= baselineBytes) {
+      const prefix = Buffer.from(bytes.subarray(0, baselineBytes)).toString("utf8");
+      const boundary = prefix.lastIndexOf("\n") + 1;
+      for (const line of text.slice(0, boundary).split(/\r?\n/)) await this.processLine(tracker, line, false);
+      tracker.activity.flushBaseline();
+      tracker.offset = boundary;
+    }
+    this.baselineFileSizes.delete(tracker.uri.toString());
     const combined = `${tracker.remainder}${text.slice(tracker.offset)}`;
     tracker.offset = text.length;
     tracker.lastKnownSize = stat.size;
@@ -394,7 +411,7 @@ async function resolveConfiguredRoot(value: string, reference?: vscode.Uri): Pro
 
 async function findRemoteHome(reference: vscode.Uri): Promise<vscode.Uri | undefined> {
   const candidates = new Set<string>();
-  const inferred = reference.path.match(/^\/(home|Users)\/[^/]+/)?.[0];
+  const inferred = remoteHomeFromWorkspacePath(reference.path);
   if (inferred) candidates.add(inferred);
   if (reference.path === "/root" || reference.path.startsWith("/root/")) candidates.add("/root");
   candidates.add("/root");
@@ -419,18 +436,17 @@ async function findRemoteHome(reference: vscode.Uri): Promise<vscode.Uri | undef
   return undefined;
 }
 
-async function collectRecentSessionFiles(root: vscode.Uri, lookbackDays: number): Promise<vscode.Uri[]> {
+async function collectRecentSessionFiles(root: vscode.Uri, lookbackDays: number,
+  observed: (uri: vscode.Uri, size: number, recent: boolean) => void): Promise<vscode.Uri[]> {
   const files: vscode.Uri[] = [];
-  for (let offset = 0; offset < lookbackDays; offset += 1) {
-    const date = new Date();
-    date.setDate(date.getDate() - offset);
-    const folder = vscode.Uri.joinPath(root, String(date.getFullYear()), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0"));
-    await collectJsonlFiles(folder, files);
-  }
+  // A resumed conversation keeps its original date directory. Discover by
+  // modification time across the tree, rather than by its creation-day folder.
+  await collectJsonlFiles(root, files, Date.now() - lookbackDays * 24 * 60 * 60 * 1000, observed);
   return files;
 }
 
-async function collectJsonlFiles(folder: vscode.Uri, files: vscode.Uri[]): Promise<void> {
+async function collectJsonlFiles(folder: vscode.Uri, files: vscode.Uri[], cutoff: number,
+  observed: (uri: vscode.Uri, size: number, recent: boolean) => void): Promise<void> {
   let entries: readonly [string, vscode.FileType][];
   try {
     entries = await vscode.workspace.fs.readDirectory(folder);
@@ -440,10 +456,21 @@ async function collectJsonlFiles(folder: vscode.Uri, files: vscode.Uri[]): Promi
   for (const [name, type] of entries) {
     const uri = vscode.Uri.joinPath(folder, name);
     if ((type & vscode.FileType.Directory) !== 0) {
-      await collectJsonlFiles(uri, files);
-    } else if ((type & vscode.FileType.File) !== 0 && name.toLowerCase().endsWith(".jsonl")) {
-      files.push(uri);
+      await collectJsonlFiles(uri, files, cutoff, observed);
     }
+  }
+  const candidates = entries.filter(([name, type]) => (type & vscode.FileType.File) !== 0 && name.toLowerCase().endsWith(".jsonl"));
+  // Bound remote metadata requests; inactive history is never downloaded.
+  for (let offset = 0; offset < candidates.length; offset += 16) {
+    await Promise.all(candidates.slice(offset, offset + 16).map(async ([name]) => {
+      const uri = vscode.Uri.joinPath(folder, name);
+      try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        const recent = stat.mtime >= cutoff;
+        observed(uri, stat.size, recent);
+        if (recent) files.push(uri);
+      } catch { /* A session may disappear or rotate during discovery. */ }
+    }));
   }
 }
 

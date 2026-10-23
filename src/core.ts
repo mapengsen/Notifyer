@@ -296,6 +296,12 @@ export function truncate(value: string | undefined, maxLength = 180): string {
   return `${clean.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
+/** Infer the user home from standard or mounted home paths without enumerating other users. */
+export function remoteHomeFromWorkspacePath(workspacePath: string): string | undefined {
+  return workspacePath.match(/^\/(?:[^/]+\/)*?(?:home|Users)\/[^/]+/)?.[0]
+    ?? (workspacePath === "/root" || workspacePath.startsWith("/root/") ? "/root" : undefined);
+}
+
 export function projectNameFromCwd(cwd: string | undefined): string {
   const normalized = cwd?.replace(/[\\/]+$/, "") ?? "";
   if (!normalized) {

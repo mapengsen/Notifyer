@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import {
   isClaudeMainTaskCompletion,
   projectNameFromCwd,
+  remoteHomeFromWorkspacePath,
   shouldNotifySessionCompletion,
   truncate,
 } from "./core";
@@ -227,7 +228,7 @@ async function resolveConfiguredRoot(value: string): Promise<vscode.Uri> {
 
 async function findRemoteHome(reference: vscode.Uri): Promise<vscode.Uri | undefined> {
   const candidates = new Set<string>();
-  const inferred = reference.path.match(/^\/(home|Users)\/[^/]+/)?.[0];
+  const inferred = remoteHomeFromWorkspacePath(reference.path);
   if (inferred) candidates.add(inferred);
   candidates.add("/root");
   for (const base of ["/home", "/Users"]) {

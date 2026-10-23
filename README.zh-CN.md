@@ -58,6 +58,8 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 在 WSL、Remote SSH 和容器窗口中，Codex 监听默认会同时覆盖当前连接环境与本地 UI 环境。因此，同一个 VS Code 窗口既能识别远程 Codex，也能识别本地 Codex Desktop 写入的任务。只有希望仅监听一个指定目录时，才需要设置 `codexTaskCompanion.codex.sessionsRoot`。
 
+支持 `/data/home/user` 等挂载目录中的远程主目录。Codex 按日志最近修改时间发现会话，因此继续旧对话时，即使日志还放在最初创建时的日期目录中，也可以正常识别。非活跃历史不下载，恢复对话不会补发旧完成提醒。Codex 后台服务可能在一轮完成后继续驻留；“运行中”依据实际会话活动判断，不能仅凭进程存在判断。
+
 ### 2、Terminal命令监听（桌面通知）
 
 <img alt="1786957707385" src="image/1/1786957707385.png" width="370" height="153">
@@ -116,6 +118,11 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月23日（0.4.18）：
+
+1. 支持 `/data/home/user` 等挂载目录中的 Codex／Claude 远程主目录；Codex 按日志修改时间发现继续使用的旧对话，不受其原始日期目录限制。
+2. 历史扫描保持静默；原本不活跃的对话恢复后，仅处理追加活动，避免补发旧完成提醒。
 
 ## 2026年10月23日（0.4.17）：
 

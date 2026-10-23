@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -129,7 +129,7 @@
           "default": 7,
           "minimum": 1,
           "maximum": 14,
-          "description": "扫描最近多少天的 Codex 会话文件。"
+          "description": "按最近修改时间扫描多少天内活跃的 Codex 会话文件；继续旧对话时不受其原始日期目录限制。"
         },
         "codexTaskCompanion.codex.notifyInitialScan": {
           "type": "boolean",
@@ -245,7 +245,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js out/src/test/sessionSelection.test.js out/src/test/sessionViewMonitor.test.js",
+    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js out/src/test/sessionSelection.test.js out/src/test/sessionViewMonitor.test.js out/src/test/sessionMonitor.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "npm run compile && vsce package"
   },

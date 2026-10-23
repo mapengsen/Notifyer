@@ -10,11 +10,24 @@ import {
   isDesktopNotificationActivation,
   mergeChildSessionClassification,
   normalizeWorkspacePath,
+  remoteHomeFromWorkspacePath,
   shouldNotifyTerminalCommand,
   shouldNotifySessionCompletion,
   workspacePathsOverlap,
 } from "../core";
 import { NotificationClaimStore } from "../notificationClaimStore";
+
+test("remote home inference supports mounted user homes and preserves standard layouts", () => {
+  for (const [workspace, home] of [
+    ["/data/home/mapengsen/opticaldna_pixel", "/data/home/mapengsen"],
+    ["/mnt/data/home/scwc385/run", "/mnt/data/home/scwc385"],
+    ["/home/user/project", "/home/user"], ["/Users/user/project", "/Users/user"],
+    ["/root/project", "/root"], ["/root", "/root"],
+  ]) assert.equal(remoteHomeFromWorkspacePath(workspace), home);
+  assert.equal(remoteHomeFromWorkspacePath("/srv/project"), undefined);
+  assert.equal(remoteHomeFromWorkspacePath("/data/home"), undefined);
+  assert.equal(remoteHomeFromWorkspacePath("/root-other/project"), undefined);
+});
 
 test("initial session scan is silent unless explicitly enabled", () => {
   assert.equal(shouldNotifySessionCompletion(false, false), false);

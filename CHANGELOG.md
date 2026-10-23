@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.18 - 2026-10-23
+
+### Fixed / 修复
+
+- Recognize mounted remote home paths such as `/data/home/user` and `/mnt/data/home/user` when locating Codex and Claude session directories.
+- 查找 Codex／Claude 会话目录时，支持 `/data/home/user`、`/mnt/data/home/user` 等挂载目录中的远程用户主目录。
+- Discover Codex logs by recent modification time throughout the sessions tree. A conversation resumed from an older date directory is no longer missed because of its creation date.
+- Codex 改为按最近修改时间发现会话日志，不再因对话创建日期较早而漏掉继续使用的旧会话。
+- Inspect inactive files through metadata only, with bounded parallel requests. Remember their historical byte boundaries so later resumes process appended activity without replaying historical completions as new reminders; preserve silent startup baselines.
+- 非活跃文件仅读取元数据，并限制并发请求。记录历史内容边界，旧对话恢复时仅把追加活动作为新内容，避免补发旧完成提醒；首次扫描仍保持静默。
+
 ## 0.4.17 - 2026-10-23
 
 ### Fixed / 修复

@@ -58,6 +58,8 @@ Notifyer monitors the main-task status of AI agents such as Codex and Claude Cod
 
 In WSL, Remote SSH, and container windows, Codex monitoring covers both the connected environment and the local UI environment by default. This allows the same VS Code window to detect tasks written by either remote Codex or local Codex Desktop. Set `codexTaskCompanion.codex.sessionsRoot` only when you want to monitor one explicit directory.
 
+Mounted remote homes such as `/data/home/user` are supported. Codex discovery uses the log's recent modification time, so continuing an older conversation still works even when its log remains in its original date directory. Inactive history is not downloaded, and resuming it does not resend old completion reminders. A Codex background server may remain alive after a turn completes; running cards follow observed conversation activity rather than the existence of a process.
+
 ### 2. Monitor terminal commands (desktop notifications)
 
 <img alt="Terminal command desktop notification" src="image/1/1786957707385.png" width="370" height="153">
@@ -116,6 +118,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 23, 2026 (0.4.18)
+
+1. Recognize mounted remote homes for Codex and Claude; discover resumed Codex conversations by log modification time regardless of their original date directory.
+2. Preserve silent history and process only appended activity when a previously inactive conversation resumes.
 
 ## October 23, 2026 (0.4.17)
 
