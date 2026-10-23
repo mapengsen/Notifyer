@@ -117,6 +117,11 @@ Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-
 
 # Changelog
 
+## October 23, 2026 (0.4.17)
+
+1. Fix exact-conversation navigation across local and remote extension hosts: use globally registered provider selectors even when the local registry cannot see the remote provider.
+2. Retain source and session-ID validation; include live selection and navigation phases in window diagnostics.
+
 ## October 23, 2026 (0.4.16)
 
 1. Synchronize read state when a completed conversation is selected directly inside VS Code, including already-active Claude editors and native per-session read changes.

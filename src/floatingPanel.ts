@@ -10,7 +10,7 @@ import { focusSession, SessionFocusRequest } from "./sessionFocus";
 import { openSession } from "./sessionNavigator";
 import { SessionViewMonitor } from "./sessionViewMonitor";
 import { isPendingResult } from "./sessionSelection";
-import { aggregateSessions, applyActivity, atomicWriteJson, digest, isPanelHealthy, panelVisibility, PanelHeartbeat, PanelVisibilityRequest, StoredSession, WindowSnapshot } from "./floatingState";
+import { aggregateSessions, applyActivity, atomicWriteJson, digest, isPanelHealthy, panelVisibility, PanelHeartbeat, PanelVisibilityRequest, SessionNavigationDiagnostics, StoredSession, WindowSnapshot } from "./floatingState";
 
 export class FloatingPanel implements vscode.Disposable {
   private readonly windowId = randomUUID();
@@ -28,6 +28,7 @@ export class FloatingPanel implements vscode.Disposable {
   private focusGeneration = 0;
   private focusQueue: Promise<void> = Promise.resolve();
   private readonly viewMonitor: SessionViewMonitor | undefined;
+  private lastNavigation: SessionNavigationDiagnostics | undefined;
   private readonly statusItem: vscode.StatusBarItem | undefined;
   private readonly statusTimer: NodeJS.Timeout | undefined;
   private readonly output = vscode.window.createOutputChannel("Notifyer Floating Window");
@@ -98,7 +99,7 @@ export class FloatingPanel implements vscode.Disposable {
       windowId: this.windowId, sessionCount: this.sessions.size, lastError: this.lastError, panelError,
       helper: this.heartbeat(), helperHealthy: isPanelHealthy(this.heartbeat()), lastLaunchAt: this.lastLaunchAt,
       launchAttempts: this.launchAttempts, lastExit: this.lastExit, existingHelperDetected: this.existingHelperDetected,
-      floatingWindowVisible: this.isVisible(), statusBarEntry: process.platform === "win32", sessionSelection: this.viewMonitor?.getDiagnostics() };
+      floatingWindowVisible: this.isVisible(), statusBarEntry: process.platform === "win32", sessionSelection: this.viewMonitor?.getDiagnostics(), navigation: this.lastNavigation };
   }
   public dispose(): void {
     this.disposed = true;
@@ -155,6 +156,7 @@ export class FloatingPanel implements vscode.Disposable {
     const snapshot: WindowSnapshot = {
       version: 1, windowId: this.windowId, workspace: this.workspace(),
       extensionVersion: this.context.extension.packageJSON.version,
+      sessionSelection: this.viewMonitor?.getDiagnostics(), navigation: this.lastNavigation,
       project: vscode.workspace.name ?? "未打开文件夹",
       environment: vscode.env.remoteName ?? "本地",
       windowHandle: String(getNotificationDiagnostics().originatingWindowHandle ?? ""),
@@ -209,7 +211,10 @@ export class FloatingPanel implements vscode.Disposable {
             return vscode.window.state.focused;
           },
           openSession: async (session) => {
-            try { return await openSession(session, (target) => this.viewMonitor?.confirms(target) ?? false); } catch (error) { this.report(error); return false; }
+            try {
+              return await openSession(session, (target) => this.viewMonitor?.confirms(target) ?? false,
+                (diagnostics) => { this.lastNavigation = diagnostics; });
+            } catch (error) { this.report(error); return false; }
           },
           isCurrentAndFocused: () => !this.disposed && generation === this.focusGeneration && vscode.window.state.focused,
           acknowledge: (key) => atomicWriteJson(path.join(this.root, "read", `${key}.json`), { at: Date.now(), source: "session-opened" }),

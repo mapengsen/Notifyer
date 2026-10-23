@@ -117,6 +117,11 @@ Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude
 
 # 更新日志：
 
+## 2026年10月23日（0.4.17）：
+
+1. 修复本机 Notifyer 无法从本机扩展列表查到远程 Claude／Codex，导致卡片只返回项目窗口的问题；改用全局注册的指定会话选择器。
+2. 保留来源与会话 ID 核验，并在窗口诊断中记录实时选中会话及跳转阶段。
+
 ## 2026年10月23日（0.4.16）：
 
 1. 补上直接在 VS Code 内选中已完成对话的已查看同步，覆盖原本已激活的 Claude 标签及提供方原生已读变化。

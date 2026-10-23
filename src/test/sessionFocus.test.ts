@@ -141,7 +141,8 @@ function navigator() {
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../sessionNavigator.js"), "utf8"),
     { exports: module.exports, module, setTimeout: (action: () => void) => action(),
       require: (name: string) => { assert.equal(name, "vscode"); return api; } });
-  const open = (module.exports as { openSession: (value: StoredSession, confirms?: (value: StoredSession) => boolean) => Promise<boolean> }).openSession;
+  const open = (module.exports as { openSession: (value: StoredSession, confirms?: (value: StoredSession) => boolean,
+    report?: (details: any) => void) => Promise<boolean> }).openSession;
   return { api, extension, calls, open };
 }
 
@@ -184,7 +185,7 @@ test("a remote Claude session can use a validated binding even when extension ho
   n.extension.extensionKind = 1;
   const remote = session({ key: "claude:vscode-remote://ssh-remote+server-a/home/a.jsonl:session-a" });
   assert.equal(await n.open(remote, (target) => target.sessionId === "session-a"), true);
-  assert.equal(await n.open(remote), false);
+  assert.equal(await n.open(remote, () => false), false);
 });
 
 test("Codex navigation verifies the active custom editor's exact session resource", async () => {
@@ -203,8 +204,59 @@ test("missing provider extensions and unsupported custom editors preserve the re
   n.extension.packageJSON.contributes.customEditors = [];
   assert.equal(await n.open(session({ provider: "codex", key: "codex:file:///C:/project/a.jsonl:session-a" })), false);
   n.api.extensions.getExtension = () => undefined;
+  n.api.commands.getCommands = async () => [];
   assert.equal(await n.open(session()), false);
   assert.deepEqual(n.calls, []);
+});
+
+test("Remote SSH Claude commands work when the provider is absent from the UI extension host registry", async () => {
+  const n = navigator();
+  n.api.env.remoteName = "ssh-remote";
+  n.api.extensions.getExtension = () => undefined; // Actual Remote SSH topology.
+  const value = session({ key: "claude:vscode-remote://ssh-remote+server-a/root/a.jsonl:session-a" });
+  const f = fixture(value);
+  const diagnostics: any[] = [];
+  f.focus();
+  f.host.openSession = (target) => n.open(target, () => n.calls.at(-1)?.args[0] === value.sessionId,
+    (details) => diagnostics.push(details));
+  assert.equal(await focusSession(request(value), f.host), "viewed");
+  assert.deepEqual(f.read, [acknowledgementKey(value)]);
+  assert.equal(n.calls.length, 1);
+  assert.equal(n.calls[0].command, "claude-vscode.editor.open");
+  assert.equal(n.calls[0].args[0], value.sessionId);
+  assert.equal(diagnostics.at(-1).localExtensionVisible, false);
+  assert.equal(diagnostics.at(-1).phase, "session-id-confirmed");
+});
+
+test("remote providers with unavailable commands or the wrong SSH authority remain unread", async () => {
+  const n = navigator();
+  n.api.env.remoteName = "ssh-remote";
+  n.api.extensions.getExtension = () => undefined;
+  n.api.commands.getCommands = async () => [];
+  const remote = session({ key: "claude:vscode-remote://ssh-remote+server-a/root/a.jsonl:session-a" });
+  const diagnostics: any[] = [];
+  assert.equal(await n.open(remote, () => true, (details) => diagnostics.push(details)), false);
+  assert.equal(diagnostics.at(-1).phase, "selector-unavailable");
+  assert.equal(await n.open({ ...remote, key: remote.key.replace("server-a", "server-b") }, () => true,
+    (details) => diagnostics.push(details)), false);
+  assert.equal(diagnostics.at(-1).phase, "remote-authority-mismatch");
+  assert.deepEqual(n.calls, []);
+});
+
+test("a changed provider tab cannot bypass a supplied session-ID verifier", async () => {
+  const n = navigator();
+  assert.equal(await n.open(session(), () => false), false);
+  assert.equal(n.calls.length, 1);
+});
+
+test("Remote Codex custom-editor selectors do not require same-host extension metadata", async () => {
+  const n = navigator();
+  n.api.env.remoteName = "ssh-remote";
+  n.api.extensions.getExtension = () => undefined;
+  const remote = session({ provider: "codex", key: "codex:vscode-remote://ssh-remote+server-a/root/a.jsonl:session-a" });
+  assert.equal(await n.open(remote), true);
+  assert.equal(n.calls[0].command, "vscode.openWith");
+  assert.equal(n.calls[0].args[0].path, "/local/session-a");
 });
 
 test("remote navigation checks the provider environment and remote authority", async () => {

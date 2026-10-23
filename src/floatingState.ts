@@ -10,6 +10,8 @@ export interface WindowSnapshot {
   version: 1;
   windowId: string;
   extensionVersion?: string;
+  sessionSelection?: Record<string, unknown>;
+  navigation?: SessionNavigationDiagnostics;
   project: string;
   workspace: string;
   environment: string;
@@ -18,6 +20,14 @@ export interface WindowSnapshot {
   heartbeat: number;
   closed?: boolean;
   sessions: StoredSession[];
+}
+export interface SessionNavigationDiagnostics {
+  provider: string;
+  sessionId: string;
+  localExtensionVisible: boolean;
+  selectorAvailable?: boolean;
+  phase: string;
+  at: number;
 }
 export interface PanelRow extends StoredSession {
   owners: Array<{ windowId: string; label: string; online: boolean }>;

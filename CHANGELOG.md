@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.17 - 2026-10-23
+
+### Fixed / 修复
+
+- Fix floating-card navigation when Notifyer runs locally and Claude or Codex runs in the remote extension host. The local extension registry can omit remote providers; use their globally registered session command/editor selector instead of returning after window focus.
+- 修复 Notifyer 在本机、Claude／Codex 在远程扩展宿主时的卡片跳转。本机扩展列表可能不包含远程提供方，现改用全局注册的指定会话命令／编辑器选择器，避免只返回项目窗口。
+- Preserve source-environment checks and exact-session verification before acknowledging the clicked result. A different tab, unavailable selector or unconfirmed identity keeps its pending reminder.
+- 保留来源环境检查与具体会话核验；选中其他标签、命令不可用或身份无法确认时，继续保留待查看。
+- Include live selection and navigation diagnostics in each window snapshot, recording command availability and the last verification phase.
+- 各窗口快照补充实时会话选中与跳转诊断，记录命令可用性及最后核验阶段。
+
 ## 0.4.16 - 2026-10-23
 
 ### Fixed / 修复
