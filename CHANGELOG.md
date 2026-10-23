@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.21 - 2026-10-23
+
+### Added / 新增
+
+- Show elapsed whole minutes after the provider and running status on floating cards, for example `Claude · 运行中 · 已运行 23 分钟`. Timing follows the current turn and refreshes even without new log activity.
+- 悬浮卡片底部在提供方和运行状态后显示整分钟时长，例如“Claude · 运行中 · 已运行 23 分钟”。按当前轮次计时，没有新日志时也会继续更新。
+
 ## 0.4.20 - 2026-10-23
 
 ### Changed / 调整

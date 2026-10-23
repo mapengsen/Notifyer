@@ -218,7 +218,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.20'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.21'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -345,7 +345,10 @@ try {
       if ($status -eq 'running' -and $Now - [double]$row.startedAt -gt 500 * 60000) { continue }
       $unread = $row.unread -and -not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))
       if ($status -eq 'running' -or $unread) {
-        [pscustomobject]@{ row = $row; status = $status; unread = $unread }
+        # Including elapsed minutes in the snapshot refreshes the footer even
+        # when no new log is written, at this turn's own minute boundary.
+        $runningMinutes = if ($status -eq 'running') { [Math]::Max(0, [Math]::Floor(($Now - [double]$row.startedAt) / 60000)) } else { $null }
+        [pscustomobject]@{ row = $row; status = $status; unread = $unread; runningMinutes = $runningMinutes }
       }
     }
   }
@@ -408,7 +411,7 @@ try {
     # The same filtered rows drive the list and counts, including when a turn
     # crosses 500 minutes without receiving another log update.
     $visibleRows = @(Get-VisibleRows $model.rows $now $stale)
-    $signature = ($visibleRows | ConvertTo-Json -Depth 18 -Compress) + ':' + $stale + ':' + [Math]::Floor($now / 60000) + ':' + $script:theme + ':' + $script:fontSize
+    $signature = ($visibleRows | ConvertTo-Json -Depth 18 -Compress) + ':' + $stale + ':' + $script:theme + ':' + $script:fontSize
     $running = 0
     $pending = 0
     foreach ($visible in $visibleRows) {
@@ -431,7 +434,7 @@ try {
       $unread = $visible.unread
       $status = $visible.status
       $statusLabel = switch ($status) {
-        'running' { '运行中' }
+        'running' { '运行中 · 已运行 ' + $visible.runningMinutes + ' 分钟' }
         'completed' { '待查看' }
         'failed' { '出错 · 待查看' }
         default { '状态待确认' }
@@ -491,6 +494,7 @@ try {
       $metadata.ColumnDefinitions[1].Width = 'Auto'
       $detail = New-Object Windows.Controls.StackPanel
       $statusText = Text-Element ($provider + ' · ' + $statusLabel) (Theme-Color 'MetadataForeground') ($script:fontSize - 2)
+      $statusText.ToolTip = $statusText.Text
       $null = $detail.Children.Add($statusText)
       $null = $metadata.Children.Add($detail)
       if ($unread) {
@@ -538,9 +542,9 @@ try {
         $expectedProject = Project-Name $row.owners[0].label
         if ($project.Text -ne $expectedProject -or $project.FontSize -ne $heading.FontSize -or $project.FontWeight -ne [Windows.FontWeights]::Bold -or $project.Foreground.ToString() -ne $expectedProjectColor) { throw 'The first line must show the bold project name in the running/unread color at the body font size.' }
         if ($project.TextWrapping -ne 'NoWrap' -or $project.TextTrimming -ne 'CharacterEllipsis') { throw 'Long project names must stay on one line with an ellipsis.' }
-        if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Only the provider and status may appear below the conversation title.' }
+        if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Provider, status and running minutes must share one footer line.' }
         $expectedProvider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
-        $expectedStatus = if ($row.status -eq 'running') { '运行中' } elseif ($row.status -eq 'failed') { '出错 · 待查看' } else { '待查看' }
+        $expectedStatus = if ($row.status -eq 'running') { '运行中 · 已运行 ' + [Math]::Max(0, [Math]::Floor(((Now-Ms) - [double]$row.startedAt) / 60000)) + ' 分钟' } elseif ($row.status -eq 'failed') { '出错 · 待查看' } else { '待查看' }
         foreach ($line in $card.Child.Children[2].Children[0].Children) {
           if ($line.Text -ne ($expectedProvider + ' · ' + $expectedStatus) -or $line.FontSize -ne $heading.FontSize - 2 -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground') -or $line.FontWeight -ne [Windows.FontWeights]::Normal) { throw 'The final line must show the provider and status in gray, two font sizes below the body.' }
         }
@@ -623,6 +627,9 @@ try {
     Set-SpinnerMotion $spinner $false
     if ($spinner.RenderTransform.HasAnimatedProperties) { throw 'Hidden/unloaded spinners must release their animation clocks.' }
     $boundary = [pscustomobject]@{ status = 'running'; startedAt = 1000000; unread = $false }
+    if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 59999) $false)[0].runningMinutes -ne 0) { throw 'A partial first minute must display zero minutes.' }
+    if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 60000) $false)[0].runningMinutes -ne 1) { throw 'Running minutes must update at the turn boundary without new activity.' }
+    if (@(Get-VisibleRows @($boundary) ($boundary.startedAt - 1000) $false)[0].runningMinutes -ne 0) { throw 'Clock differences must not display negative running minutes.' }
     $cutoff = $boundary.startedAt + 500 * 60000
     if (@(Get-VisibleRows @($boundary) ($cutoff - 1) $false).Count -ne 1) { throw 'A turn below 500 minutes must remain visible.' }
     if (@(Get-VisibleRows @($boundary) $cutoff $false).Count -ne 1) { throw 'Exactly 500 minutes must remain visible.' }
@@ -703,7 +710,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.20' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.21' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
