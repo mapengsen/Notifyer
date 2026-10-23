@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.20 - 2026-10-23
+
+### Changed / 调整
+
+- Open clicked Codex conversations in the existing Codex sidebar using its session-specific URI handler, rather than creating a conversation editor tab. Resolve the callback through VS Code for the originating window and preserve its URI unchanged.
+- 点击 Codex 卡片时，改用带会话 ID 的 URI 入口，在现有 Codex 侧边栏切换并打开对应聊天，不再新开会话编辑器标签。通过 VS Code 解析对应窗口的回调链接，并原样传递。
+- Keep source-environment and SSH-authority checks. Missing selectors and rejected links retain reminders; accepted URL delivery alone never acknowledges a result. Confirmed native read receipts remain scoped to the exact pending turn.
+- 保留来源环境及 SSH 主机核验。入口不可用、链接被拒绝时保留提醒；仅链接已发送不算已查看，确认后的原生已读回执仍仅对应具体待查看轮次。
+
 ## 0.4.19 - 2026-10-23
 
 ### Fixed / 修复

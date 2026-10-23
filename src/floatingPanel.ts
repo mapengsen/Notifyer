@@ -222,7 +222,9 @@ export class FloatingPanel implements vscode.Disposable {
         if (generation !== this.focusGeneration || this.disposed) return;
         this.publishModel();
         atomicWriteJson(path.join(this.root, "response.json"), { message: result === "failed" ? "无法切换窗口"
-          : result === "window-only" && action.key ? "已返回窗口；未确认具体对话，保留待查看" : "", at: Date.now() });
+          : result === "window-only" && action.key ? this.lastNavigation?.phase === "sidebar-open-requested"
+            ? "已请求在 Codex 侧边栏打开指定对话；未确认已查看，保留提醒"
+            : "已返回窗口；未确认具体对话，保留待查看" : "", at: Date.now() });
       }).catch((error) => this.report(error));
     }
   }

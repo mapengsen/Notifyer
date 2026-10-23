@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { StoredSession } from "./floatingState";
+import { acknowledgementKey, StoredSession } from "./floatingState";
 import { ProviderStateReader } from "./providerStateReader";
 import { claudeUnread, ClaudeReadTracker, codexUnread, isPendingResult, matchingResult, NativeReadTracker, selectedClaudeSession, viewedResult, ViewedResult } from "./sessionSelection";
 
@@ -44,7 +44,8 @@ export class SessionViewMonitor implements vscode.Disposable {
       codexReadStateAvailable: this.codexReadStateAvailable, lastViewed: this.lastViewed, lastError: this.lastError };
   }
   public confirms(session: StoredSession): boolean {
-    if (!vscode.window.state.focused || session.provider !== "claude") return false;
+    if (!vscode.window.state.focused) return false;
+    if (session.provider === "codex") return this.acknowledged.has(acknowledgementKey(session));
     try { return this.activeClaudeSession() === session.sessionId; } catch (error) { this.lastError = String(error); return false; }
   }
   private workspacePaths(): string[] {

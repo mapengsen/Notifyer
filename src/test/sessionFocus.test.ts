@@ -120,16 +120,19 @@ function navigator() {
   class TabInputCustom { constructor(public uri: unknown, public viewType: string) {} }
   class TabInputWebview { constructor(public viewType: string) {} }
   const calls: Array<{ command: string; args: any[] }> = [];
+  const routes: any[] = [], external: any[] = [];
   const extension = { extensionKind: 2, activate: async () => undefined,
     packageJSON: { contributes: { customEditors: [{ viewType: "chatgpt.conversationEditor" }] } } };
   const api: any = {
     ExtensionKind: { UI: 1, Workspace: 2 }, TabInputCustom, TabInputWebview,
-    extensions: { getExtension: () => extension }, env: { remoteName: undefined },
+    extensions: { getExtension: () => extension }, env: { remoteName: undefined, uriScheme: "vscode-test",
+      asExternalUri: async (uri: any) => { routes.push(uri); return { ...uri, query: "windowId=test-window" }; },
+      openExternal: async (uri: any) => { external.push(uri); return true; } },
     workspace: { workspaceFolders: [{ uri: { authority: "ssh-remote+server-a" } }] },
     Uri: { from: (value: unknown) => value, parse: (value: string) => ({ authority: new URL(value).host }) },
     window: { tabGroups: { activeTabGroup: { activeTab: undefined } } },
     commands: {
-      getCommands: async () => ["claude-vscode.editor.open"],
+      getCommands: async () => ["claude-vscode.editor.open", "chatgpt.openSidebar"],
       executeCommand: async (command: string, ...args: any[]) => {
         calls.push({ command, args });
         if (command === "vscode.openWith") api.window.tabGroups.activeTabGroup.activeTab = { input: new TabInputCustom(args[0], args[1]) };
@@ -143,7 +146,7 @@ function navigator() {
       require: (name: string) => { assert.equal(name, "vscode"); return api; } });
   const open = (module.exports as { openSession: (value: StoredSession, confirms?: (value: StoredSession) => boolean,
     report?: (details: any) => void) => Promise<boolean> }).openSession;
-  return { api, extension, calls, open };
+  return { api, extension, calls, routes, external, open };
 }
 
 test("Claude navigation selects the requested session ID even when chat titles are identical", async () => {
@@ -188,24 +191,32 @@ test("a remote Claude session can use a validated binding even when extension ho
   assert.equal(await n.open(remote, () => false), false);
 });
 
-test("Codex navigation verifies the active custom editor's exact session resource", async () => {
+test("Codex opens the exact conversation through its window-resolved sidebar URI without creating editor tabs", async () => {
   const n = navigator();
   const value = session({ provider: "codex", key: "codex:file:///C:/project/a.jsonl:session-a" });
-  assert.equal(await n.open(value), true);
-  assert.equal(n.calls[0].command, "vscode.openWith");
-  assert.equal(n.calls[0].args[0].path, "/local/session-a");
-  assert.equal(n.calls[0].args[1], "chatgpt.conversationEditor");
-  n.api.commands.executeCommand = async () => undefined; // It failed to select the requested chat.
-  assert.equal(await n.open({ ...value, sessionId: "session-b", key: "codex:file:///C:/project/b.jsonl:session-b" }), false);
+  assert.equal(await n.open(value, (target) => target.sessionId === "session-a"), true);
+  assert.deepEqual(n.routes.map((uri) => [uri.scheme, uri.authority, uri.path]),
+    [["vscode-test", "openai.chatgpt", "/local/session-a"]]);
+  assert.equal(n.external[0].query, "windowId=test-window");
+  assert.deepEqual(n.calls, []);
 });
 
-test("missing provider extensions and unsupported custom editors preserve the reminder", async () => {
-  const n = navigator();
-  n.extension.packageJSON.contributes.customEditors = [];
-  assert.equal(await n.open(session({ provider: "codex", key: "codex:file:///C:/project/a.jsonl:session-a" })), false);
-  n.api.extensions.getExtension = () => undefined;
+test("accepted Codex URI delivery alone never proves that a result was read", async () => {
+  const n = navigator(), diagnostics: any[] = [];
+  assert.equal(await n.open(session({ provider: "codex", key: "codex:file:///C:/project/a.jsonl:session-a" }),
+    () => false, (details) => diagnostics.push(details)), false);
+  assert.equal(n.external.length, 1);
+  assert.equal(diagnostics.at(-1).phase, "sidebar-open-requested");
+});
+
+test("unavailable sidebar commands and rejected URI delivery retain the reminder without opening an editor", async () => {
+  const n = navigator(), value = session({ provider: "codex", key: "codex:file:///C:/project/a.jsonl:session-a" });
   n.api.commands.getCommands = async () => [];
-  assert.equal(await n.open(session()), false);
+  assert.equal(await n.open(value), false);
+  assert.equal(n.external.length, 0);
+  n.api.commands.getCommands = async () => ["chatgpt.openSidebar"];
+  n.api.env.openExternal = async () => false;
+  assert.equal(await n.open(value, () => true), false);
   assert.deepEqual(n.calls, []);
 });
 
@@ -249,14 +260,17 @@ test("a changed provider tab cannot bypass a supplied session-ID verifier", asyn
   assert.equal(n.calls.length, 1);
 });
 
-test("Remote Codex custom-editor selectors do not require same-host extension metadata", async () => {
+test("Remote Codex sidebar routes work without same-host provider metadata and reject a different SSH host", async () => {
   const n = navigator();
   n.api.env.remoteName = "ssh-remote";
   n.api.extensions.getExtension = () => undefined;
   const remote = session({ provider: "codex", key: "codex:vscode-remote://ssh-remote+server-a/root/a.jsonl:session-a" });
-  assert.equal(await n.open(remote), true);
-  assert.equal(n.calls[0].command, "vscode.openWith");
-  assert.equal(n.calls[0].args[0].path, "/local/session-a");
+  assert.equal(await n.open(remote, () => true), true);
+  assert.equal(n.routes[0].path, "/local/session-a");
+  assert.equal(n.external[0].query, "windowId=test-window");
+  assert.equal(await n.open({ ...remote, key: remote.key.replace("server-a", "server-b") }, () => true), false);
+  assert.equal(n.external.length, 1);
+  assert.deepEqual(n.calls, []);
 });
 
 test("remote navigation checks the provider environment and remote authority", async () => {

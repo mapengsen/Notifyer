@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { SessionNavigationDiagnostics, StoredSession } from "./floatingState";
 
 /** Use provider-specific session selectors; generic sidebar/focus commands are unsafe. */
-export async function openSession(session: StoredSession, confirmsClaudeSelection?: (session: StoredSession) => boolean,
+export async function openSession(session: StoredSession, confirmsSelection?: (session: StoredSession) => boolean,
   report?: (diagnostics: SessionNavigationDiagnostics) => void): Promise<boolean> {
   const extensionId = session.provider === "claude" ? "anthropic.claude-code" : "openai.chatgpt";
   const extension = vscode.extensions.getExtension(extensionId);
@@ -36,23 +36,28 @@ export async function openSession(session: StoredSession, confirmsClaudeSelectio
     // Prefer the validated live-tab/session binding, including already-active
     // editors. Command completion alone never proves which result was viewed.
     for (let elapsed = 0; elapsed <= 2000; elapsed += 50) {
-      if (confirmsClaudeSelection?.(session)) { trace("session-id-confirmed", true); return true; }
+      if (confirmsSelection?.(session)) { trace("session-id-confirmed", true); return true; }
       const selected = vscode.window.tabGroups.activeTabGroup.activeTab;
-      if (!confirmsClaudeSelection && selected && selected !== previous && selected.input instanceof vscode.TabInputWebview
+      if (!confirmsSelection && selected && selected !== previous && selected.input instanceof vscode.TabInputWebview
         && selected.input.viewType.includes("claudeVSCodePanel")) { trace("provider-editor-selected", true); return true; }
       if (elapsed < 2000) await new Promise<void>((resolve) => setTimeout(resolve, 50));
     }
     trace("session-not-confirmed", true); return false;
   }
-  if (extension && !extension.packageJSON.contributes?.customEditors?.some((item: { viewType?: string }) => item.viewType === "chatgpt.conversationEditor")) {
+  if (!(await vscode.commands.getCommands(true)).includes("chatgpt.openSidebar")) {
     trace("selector-unavailable", false); return false;
   }
-  const uri = vscode.Uri.from({ scheme: "openai-codex", authority: "route", path: `/local/${session.sessionId}` });
-  trace("opening-session");
-  await vscode.commands.executeCommand("vscode.openWith", uri, "chatgpt.conversationEditor", { preserveFocus: false, preview: false });
-  const active = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
-  const confirmed = active instanceof vscode.TabInputCustom && active.viewType === "chatgpt.conversationEditor"
-    && active.uri.scheme === uri.scheme && active.uri.authority === uri.authority && active.uri.path === uri.path;
-  trace(confirmed ? "session-id-confirmed" : "session-not-confirmed", true);
-  return confirmed;
+  // Codex's URI handler focuses its existing sidebar and navigates to this
+  // exact route. openWith instead creates an editor tab, which is not desired.
+  const uri = vscode.Uri.from({ scheme: vscode.env.uriScheme, authority: "openai.chatgpt", path: `/local/${session.sessionId}` });
+  const callback = await vscode.env.asExternalUri(uri);
+  trace("opening-sidebar-session", true);
+  if (!await vscode.env.openExternal(callback)) { trace("sidebar-open-rejected", true); return false; }
+  // URL delivery alone is not a read receipt. The native per-session read
+  // transition can acknowledge this exact result independently of editor tabs.
+  for (let elapsed = 0; elapsed <= 2000; elapsed += 50) {
+    if (confirmsSelection?.(session)) { trace("sidebar-session-reviewed", true); return true; }
+    if (elapsed < 2000) await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+  trace("sidebar-open-requested", true); return false;
 }

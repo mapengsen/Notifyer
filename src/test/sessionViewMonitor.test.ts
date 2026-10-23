@@ -192,6 +192,11 @@ test("reading a completed Codex sidebar conversation clears only that result wit
     assert.deepEqual(f.read.map((result) => result.key), ["codex:file:///work/session-a.jsonl:session-a"]);
     assert.equal(f.monitor.getDiagnostics().codexReadStateAvailable, true);
     assert.equal(f.monitor.getDiagnostics().lastViewed.source, "codex-native-read");
+    f.focus();
+    const target = { provider: "codex", key: "codex:file:///work/session-a.jsonl:session-a", sessionId: "session-a", turnId: "turn-a" };
+    assert.equal(f.monitor.confirms(target), true);
+    assert.equal(f.monitor.confirms({ ...target, turnId: "later-result" }), false);
+    assert.equal(f.monitor.confirms({ ...target, key: "codex:file:///work/session-b.jsonl:session-b", sessionId: "session-b" }), false);
     f.tick();
     assert.equal(f.read.length, 1);
   } finally { f.close(); }
