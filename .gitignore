@@ -1,5 +1,4 @@
-node_modules/
-out/
-*.vsix
-.vscode/
+# Keep the complete local project in this repository, including installed
+# dependencies, compiled output, editor settings and historical VSIX packages.
+# Git's internal .git directory is managed by Git and is not project content.
 

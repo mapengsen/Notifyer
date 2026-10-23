@@ -14,6 +14,12 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
 
+## 完整项目下载
+
+`main` 分支保存本地 Notifyer 的完整项目，包括 `src/` 源码、`out/` 编译产物、`resources/` 资源、`scripts/` 脚本、`image/` 图片、`.vscode/` 配置、`node_modules/` 依赖、`vsix/` 中的全部历史安装包，以及根目录的配置和说明文件。`.git/` 是 Git 内部版本管理目录，不属于项目内容。
+
+[下载完整项目 ZIP](https://github.com/mapengsen/Notifyer/archive/refs/heads/main.zip)。如果只需安装插件，可以从 [Releases](https://github.com/mapengsen/Notifyer/releases/latest) 下载最新 `.vsix`。仓库中的依赖是当前开发环境的快照，在其他环境中可运行 `npm ci` 重新安装。插件打包范围仍由 `.vscodeignore` 控制。
+
 ## 功能一览
 
 | 功能 | 说明 |

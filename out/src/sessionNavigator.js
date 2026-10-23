@@ -1,0 +1,125 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.openSession = openSession;
+const vscode = __importStar(require("vscode"));
+/** Use provider-specific session selectors; generic sidebar/focus commands are unsafe. */
+async function openSession(session, confirmsSelection, report) {
+    const extensionId = session.provider === "claude" ? "anthropic.claude-code" : "openai.chatgpt";
+    const extension = vscode.extensions.getExtension(extensionId);
+    const trace = (phase, selectorAvailable) => report?.({ provider: session.provider,
+        sessionId: session.sessionId, localExtensionVisible: Boolean(extension), selectorAvailable, phase, at: Date.now() });
+    // A Remote window may also monitor local logs. Those sessions must not be
+    // opened in a provider whose backend belongs to a different environment.
+    const source = session.key.slice(session.provider.length + 1, -(session.sessionId.length + 1));
+    if (!source.startsWith("file:") && !source.startsWith("vscode-remote:")) {
+        trace("invalid-source");
+        return false;
+    }
+    const remoteSource = source.startsWith("vscode-remote:");
+    if (remoteSource && !vscode.env.remoteName) {
+        trace("remote-window-required");
+        return false;
+    }
+    if (!remoteSource && vscode.env.remoteName && (!extension || extension.extensionKind === vscode.ExtensionKind.Workspace)) {
+        trace("source-environment-mismatch");
+        return false;
+    }
+    if (remoteSource && !vscode.workspace.workspaceFolders?.some((folder) => folder.uri.authority === vscode.Uri.parse(source).authority)) {
+        trace("remote-authority-mismatch");
+        return false;
+    }
+    // The stable extension API only exposes extensions in this extension host.
+    // A local UI extension must use globally registered commands/editor selectors
+    // to reach providers in the Remote SSH / WSL / container extension host.
+    if (extension)
+        await extension.activate();
+    if (session.provider === "claude") {
+        const command = "claude-vscode.editor.open";
+        const available = (await vscode.commands.getCommands(true)).includes(command);
+        if (!available) {
+            trace("selector-unavailable", false);
+            return false;
+        }
+        // Claude's command accepts a session ID and reuses that exact chat surface.
+        // Never fall back to openLast, a new conversation, or a generic focus command.
+        const previous = vscode.window.tabGroups.activeTabGroup.activeTab;
+        trace("opening-session", true);
+        await vscode.commands.executeCommand(command, session.sessionId, undefined, undefined, undefined, true);
+        // Prefer the validated live-tab/session binding, including already-active
+        // editors. Command completion alone never proves which result was viewed.
+        for (let elapsed = 0; elapsed <= 2000; elapsed += 50) {
+            if (confirmsSelection?.(session)) {
+                trace("session-id-confirmed", true);
+                return true;
+            }
+            const selected = vscode.window.tabGroups.activeTabGroup.activeTab;
+            if (!confirmsSelection && selected && selected !== previous && selected.input instanceof vscode.TabInputWebview
+                && selected.input.viewType.includes("claudeVSCodePanel")) {
+                trace("provider-editor-selected", true);
+                return true;
+            }
+            if (elapsed < 2000)
+                await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        trace("session-not-confirmed", true);
+        return false;
+    }
+    if (!(await vscode.commands.getCommands(true)).includes("chatgpt.openSidebar")) {
+        trace("selector-unavailable", false);
+        return false;
+    }
+    // Codex's URI handler focuses its existing sidebar and navigates to this
+    // exact route. openWith instead creates an editor tab, which is not desired.
+    const uri = vscode.Uri.from({ scheme: vscode.env.uriScheme, authority: "openai.chatgpt", path: `/local/${session.sessionId}` });
+    const callback = await vscode.env.asExternalUri(uri);
+    trace("opening-sidebar-session", true);
+    if (!await vscode.env.openExternal(callback)) {
+        trace("sidebar-open-rejected", true);
+        return false;
+    }
+    // URL delivery alone is not a read receipt. The native per-session read
+    // transition can acknowledge this exact result independently of editor tabs.
+    for (let elapsed = 0; elapsed <= 2000; elapsed += 50) {
+        if (confirmsSelection?.(session)) {
+            trace("sidebar-session-reviewed", true);
+            return true;
+        }
+        if (elapsed < 2000)
+            await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    trace("sidebar-open-requested", true);
+    return false;
+}

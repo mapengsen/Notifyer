@@ -14,6 +14,12 @@ What really consumes time is often not coding itself, but repeatedly switching b
 
 **Plugin**: [marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion)
 
+## Complete project download
+
+The `main` branch contains the complete local Notifyer project: `src/`, `out/`, `resources/`, `scripts/`, `image/`, `.vscode/`, `node_modules/`, all historical installers in `vsix/`, and the root configuration and documentation files. Git's internal `.git/` directory is not project content.
+
+[Download the complete project ZIP](https://github.com/mapengsen/Notifyer/archive/refs/heads/main.zip). For installation only, use the latest `.vsix` from [Releases](https://github.com/mapengsen/Notifyer/releases/latest). The included dependencies are a snapshot of this development environment; run `npm ci` to reinstall them for another environment. VSIX packaging exclusions remain in `.vscodeignore`.
+
 ## Features at a glance
 
 | Feature | What Notifyer provides |
