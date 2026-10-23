@@ -9,6 +9,7 @@ export interface StoredSession extends SessionActivity {
 export interface WindowSnapshot {
   version: 1;
   windowId: string;
+  extensionVersion?: string;
   project: string;
   workspace: string;
   environment: string;

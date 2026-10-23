@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -245,7 +245,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js",
+    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js out/src/test/sessionSelection.test.js out/src/test/sessionViewMonitor.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "npm run compile && vsce package"
   },

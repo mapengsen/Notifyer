@@ -22,7 +22,7 @@ What really consumes time is often not coding itself, but repeatedly switching b
 | Terminal commands | Success/failure reminders; Python commands by default, with configurable command filtering. |
 | Notification delivery | Desktop, VS Code, or both; optional unfocused-window-only delivery and VS Code fallback when desktop delivery fails. |
 | Windows floating window | One shared view of running and unread conversations across VS Code windows in the same profile. Click Notifyer in the bottom-right VS Code status bar to show/hide it. |
-| Review workflow | Click a card to open its exact session and remove the pending result after confirmed selection. Window activation alone never clears it. Manual review and persistence remain available. |
+| Review workflow | Select the completed chat inside VS Code or click its card to open it; confirmed identity removes only that pending result. Window activation or another chat never clears it. Manual review and persistence remain available. |
 | Appearance and controls | Sun/moon theme icons, night by default; bold project names lead each card, blue while running and yellow when unread. Gray provider/status text appears below the prompt, two font sizes smaller. Desktop notifications default off; resizing, pinning, dragging, collapse and hide persist. |
 | Local and remote projects | Local UI monitoring with accessible WSL, Remote SSH and container sessions. The floating window appears on the local Windows desktop. |
 | Reliability and diagnostics | Silent historical baseline, completion deduplication across windows, helper recovery, test notification and diagnostic commands. |
@@ -91,7 +91,7 @@ The default window fits approximately three compact cards; resize it freely and 
 
 Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime prompts remain black, project names retain their status color and the footer stays gray), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
-Click a card to return to its matching VS Code window and open the specific Codex/Claude conversation by session ID. A confirmed selection removes only that completed turn's pending card. Merely activating a window or another conversation never clears reminders. Navigation errors, unsupported selectors, mismatched environments and uncertain selection keep the reminder and manual checkmark available. Claude does not expose arbitrary webview session IDs, so sidebar/already-active Claude surfaces may require manual review; titles are never used to guess identity. New results arriving during navigation remain unread. If multiple windows match, choose the intended window first. Unknown workspace ownership and child agents remain excluded.
+Click a card to return to its matching VS Code window and open the specific Codex/Claude conversation by session ID. A confirmed selection removes only that completed turn's pending card. Merely activating a window or another conversation never clears reminders. Navigation errors, unsupported selectors, mismatched environments and uncertain selection keep the reminder and manual checkmark available. Selecting the exact completed Codex/Claude tab directly inside VS Code now synchronizes review state too. Claude editor selection is cross-checked against persisted session IDs and the current tab layout; provider-native per-session read changes also synchronize already-active editors and sidebar surfaces. Window focus or selection of another conversation never clears pending results in bulk. Unverifiable layouts or identities retain the reminder and checkmark. New turns/results arriving during navigation or verification remain unread. Selection synchronization only reads current VS Code/provider state, without changing those databases or session logs. Older VS Code runtimes without built-in readonly SQLite retain manual review for unverifiable Claude surfaces. If multiple windows match, choose the intended window first. Unknown workspace ownership and child agents remain excluded.
 
 Set `codexTaskCompanion.floatingWindow.enabled` to `false` to stop panel collection and hide it. Configure `codexTaskCompanion.floatingWindow.quietAfterMinutes` to adjust the quiet timeout. Existing notifications remain available. State and prompt title excerpts remain in local extension storage; this feature sends no additional data to external services.
 
@@ -116,6 +116,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 23, 2026 (0.4.16)
+
+1. Synchronize read state when a completed conversation is selected directly inside VS Code, including already-active Claude editors and native per-session read changes.
+2. Validate exact session/turn identities, current tab layout and provider bindings; retain reminders for other chats, new results and ambiguous state.
 
 ## October 23, 2026 (0.4.15)
 

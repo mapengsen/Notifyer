@@ -4,6 +4,19 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.16 - 2026-10-23
+
+### Fixed / 修复
+
+- Synchronize review state when users select completed conversations directly inside VS Code. Earlier versions handled floating-card navigation only.
+- 补上直接在 VS Code 内选中已完成对话的已查看同步；此前只处理桌面卡片跳转。
+- Codex uses the active conversation editor URI. Claude cross-checks persisted session IDs, current tab positions/layout and provider bindings, and observes provider-native per-session read transitions. Already-active Claude editors can now be confirmed.
+- Codex 核对活动编辑器 URI；Claude 交叉核对保存的会话 ID、当前标签顺序／布局及提供方绑定，同时同步按会话记录的原生已读变化，支持确认原本已激活的标签页。
+- Read only the current profile/workspace's required VS Code namespaces using readonly SQLite. Missing/corrupt/ambiguous state stays unread; source databases, messages and logs are never modified.
+- 只读访问当前用户配置及工作区所需的 VS Code 状态；缺失、损坏或无法确认的身份继续保留待查看，不改写源存储、消息或日志。
+- Retain other conversations, new turns and revised completion results. Background tab changes alone never count as viewing. Correct remote Claude navigation when extension-host metadata describes the local UI, and report active extension version/selection diagnostics.
+- 保留其他对话、新轮次及更新后的结果；后台标签变化不算查看。修正扩展宿主信息指向本机 UI 时的远程 Claude 跳转，并补充活动扩展版本及会话选中诊断。
+
 ## 0.4.15 - 2026-10-23
 
 ### Changed / 调整

@@ -141,7 +141,7 @@ function navigator() {
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../sessionNavigator.js"), "utf8"),
     { exports: module.exports, module, setTimeout: (action: () => void) => action(),
       require: (name: string) => { assert.equal(name, "vscode"); return api; } });
-  const open = (module.exports as { openSession: (value: StoredSession) => Promise<boolean> }).openSession;
+  const open = (module.exports as { openSession: (value: StoredSession, confirms?: (value: StoredSession) => boolean) => Promise<boolean> }).openSession;
   return { api, extension, calls, open };
 }
 
@@ -168,6 +168,23 @@ test("Claude does not clear pending results when only the window/sidebar is reve
   assert.equal(await n.open(session()), false);
   n.api.commands.executeCommand = async () => { n.api.window.tabGroups.activeTabGroup.activeTab = { input: new n.api.TabInputWebview("other-provider") }; };
   assert.equal(await n.open(session()), false);
+});
+
+test("validated session bindings confirm an already-active Claude editor without accepting another conversation", async () => {
+  const n = navigator();
+  await n.open(session());
+  n.api.commands.executeCommand = async () => undefined;
+  assert.equal(await n.open(session(), (target) => target.sessionId === "session-a"), true);
+  assert.equal(await n.open(session({ sessionId: "session-b" }), (target) => target.sessionId === "session-a"), false);
+});
+
+test("a remote Claude session can use a validated binding even when extension host metadata describes the local UI", async () => {
+  const n = navigator();
+  n.api.env.remoteName = "ssh-remote";
+  n.extension.extensionKind = 1;
+  const remote = session({ key: "claude:vscode-remote://ssh-remote+server-a/home/a.jsonl:session-a" });
+  assert.equal(await n.open(remote, (target) => target.sessionId === "session-a"), true);
+  assert.equal(await n.open(remote), false);
 });
 
 test("Codex navigation verifies the active custom editor's exact session resource", async () => {
