@@ -4,6 +4,13 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.24 - 2026-10-24
+
+### Added / 新增
+
+- Add a one-click “全部已读” button beside the pin control to review all current completed/error results across windows. Keep running work, unanswered questions and later completions; disable the button when no results await review.
+- 在“置顶”旁新增“全部已读”按钮，一键清除各窗口当前已完成／出错的待查看结果；保留运行任务、待回答问题及之后新完成的结果，没有待查看时按钮自动禁用。
+
 ## 0.4.23 - 2026-10-24
 
 ### Added / 新增

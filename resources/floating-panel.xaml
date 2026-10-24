@@ -94,7 +94,9 @@
         </StackPanel>
         <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,5,0,0">
           <Button x:Name="NotificationButton" Content="桌面通知 关" FontSize="10" Padding="7,4" Margin="0,0,5,0" ToolTip="开启 / 关闭所有窗口的桌面通知"/>
-          <Button x:Name="PinButton" Content="置顶" FontSize="10" Padding="7,4" ToolTip="切换始终置顶"/>
+          <Button x:Name="PinButton" Content="置顶" FontSize="10" Padding="7,4" Margin="0,0,5,0" ToolTip="切换始终置顶"/>
+          <Button x:Name="MarkAllReadButton" Content="全部已读" FontSize="10" Padding="7,4" IsEnabled="False"
+                  ToolTip="将当前全部待查看结果标记为已读；保留运行任务和待回答问题" AutomationProperties.Name="全部标记已读"/>
         </StackPanel>
       </Grid>
       <Grid Grid.Row="1" Margin="0,8,0,0">

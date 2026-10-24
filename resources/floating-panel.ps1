@@ -97,7 +97,7 @@ try {
   $script:geometryFontSize = $null
   $controls = @{}
   $resizeNames = @('ResizeN','ResizeS','ResizeW','ResizeE','ResizeNW','ResizeNE','ResizeSW','ResizeSE')
-  foreach ($name in (@('Header','FontDecreaseButton','FontIncreaseButton','ThemeButton','NotificationButton','PinButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionDot','SessionScroll','SessionList') + $resizeNames)) {
+  foreach ($name in (@('Header','FontDecreaseButton','FontIncreaseButton','ThemeButton','NotificationButton','PinButton','MarkAllReadButton','CollapseButton','HideButton','RunningCount','UnreadCount','Body','ConnectionDot','SessionScroll','SessionList') + $resizeNames)) {
     $controls[$name] = $script:window.FindName($name)
   }
   $dayPalette = @{}
@@ -218,7 +218,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.23'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.24'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -361,6 +361,15 @@ try {
     Write-Json (Join-Path $StateRoot ('read\' + $Row.acknowledgement + '.json')) @{ at = (Now-Ms) }
     $script:lastModel = ''
   }
+  function Mark-AllRead {
+    # Capture the displayed results and their exact turn acknowledgements once.
+    # A later completion/new turn is not part of this click.
+    $pending = @($script:cards | ForEach-Object { $_.Tag.row } | Where-Object { $_.unread -and $_.status -in @('completed', 'failed') })
+    foreach ($row in $pending) { Mark-Read $row }
+    Refresh-Panel
+    Write-Heartbeat
+  }
+  $controls.MarkAllReadButton.Add_Click({ Mark-AllRead })
   function Request-Focus($Owner, $Row) {
     if (-not $Owner -or -not $Owner.online -or [string]$Owner.windowId -notmatch '^[a-f0-9-]+$') {
       Set-PanelStatus '窗口未连接'
@@ -424,6 +433,7 @@ try {
     }
     $controls.RunningCount.Text = '运行中  ' + $running
     $controls.UnreadCount.Text = '待查看  ' + $pending
+    $controls.MarkAllReadButton.IsEnabled = @($visibleRows | Where-Object { $_.unread -and $_.status -in @('completed', 'failed') }).Count -gt 0
     $script:runningCount = $running
     $script:unreadCount = $pending
     $controls.ConnectionDot.Fill = if ($stale) { '#88909A' } else { Theme-Color 'Accent' }
@@ -744,6 +754,34 @@ try {
     Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
     Write-Json (Join-Path $StateRoot 'model.json') $originalModel
     Refresh-Panel
+    # Bulk review covers completed/error results across windows and providers,
+    # but leaves active work, unanswered questions and later completions alone.
+    $bulkPending = ($otherPending | ConvertTo-Json -Depth 15) | ConvertFrom-Json
+    $bulkPending.provider = 'claude'; $bulkPending.status = 'failed'
+    $bulkPending.owners = @(@{ windowId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'; label = 'Another window'; online = $true })
+    Add-Member -InputObject $bulkPending -NotePropertyName attention -NotePropertyValue $originalModel.rows[1].attention
+    $bulkModel = @{ updatedAt = (Now-Ms); rows = @($originalModel.rows) + @($bulkPending) }
+    Write-Json (Join-Path $StateRoot 'model.json') $bulkModel
+    Refresh-Panel
+    if ($script:unreadCount -ne 2 -or -not $controls.MarkAllReadButton.IsEnabled) { throw 'Bulk review must be available for pending results across windows.' }
+    $commandsBeforeBulk = @(Get-ChildItem -LiteralPath (Join-Path $StateRoot 'commands') -Recurse -File -Filter '*.json').Count
+    $controls.MarkAllReadButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    foreach ($row in @($pendingRow, $bulkPending)) {
+      if (-not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))) { throw 'Bulk review must acknowledge every current completed/error result.' }
+    }
+    if ($script:unreadCount -ne 0 -or $controls.MarkAllReadButton.IsEnabled -or $script:cards.Count -ne 2 -or $script:runningCount -ne 1) { throw 'Bulk review must clear pending results and retain running/question cards.' }
+    if (@($script:cards | Where-Object { $_.Tag.questionBadge }).Count -ne 2) { throw 'Bulk review must not answer questions, even on a completed/error card.' }
+    if ([IO.File]::Exists((Join-Path $StateRoot ('read\' + $originalModel.rows[1].acknowledgement + '.json')))) { throw 'Bulk review must not pre-acknowledge a running turn.' }
+    if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot 'commands') -Recurse -File -Filter '*.json').Count -ne $commandsBeforeBulk) { throw 'Bulk review must not activate conversations.' }
+    $laterResult = ($pendingRow | ConvertTo-Json -Depth 15) | ConvertFrom-Json
+    $laterResult.turnId = 'later-turn'; $laterResult.acknowledgement = ('8' * 64)
+    $bulkModel.rows[0] = $laterResult
+    Write-Json (Join-Path $StateRoot 'model.json') $bulkModel
+    Refresh-Panel
+    if ($script:unreadCount -ne 1 -or -not $controls.MarkAllReadButton.IsEnabled) { throw 'A later completion must remain unread after bulk review.' }
+    foreach ($row in @($pendingRow, $bulkPending)) { Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')) }
+    Write-Json (Join-Path $StateRoot 'model.json') $originalModel
+    Refresh-Panel
     # A rapid show/hide pair must leave the startup window hidden, and the
     # heartbeat must acknowledge the final request so all status bars agree.
     Write-Json (Join-Path $StateRoot 'control.json') @{ type = 'show'; id = 'test-show' }
@@ -751,7 +789,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.23' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.24' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'
