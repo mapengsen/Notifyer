@@ -10,6 +10,7 @@ $rows = @(
   @{ key = 'codex:d'; provider = 'codex'; sessionId = 'session-d'; turnId = 'd'; title = '已查看的历史结果'; cwd = 'F:\projects\Notifyer'; status = 'completed'; unread = $false; acknowledgement = ('d' * 64); startedAt = ($now - 600000); updatedAt = ($now - 600000); owners = @($owner) },
   @{ key = 'claude:e'; provider = 'claude'; sessionId = 'session-e'; turnId = 'e'; title = '运行超时的旧会话'; status = 'running'; unread = $false; acknowledgement = ('e' * 64); startedAt = ($now - 501 * 60000); updatedAt = $now; owners = @($owner) }
 )
+$rows[1].attention = @{ requestIds = @('preview-question'); count = 1; message = '继续当前任务，还是先处理新问题？'; askedAt = $now }
 $encoding = New-Object Text.UTF8Encoding $false
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'model.json'), (@{ updatedAt = $now; rows = $rows; desktopNotificationsEnabled = $true } | ConvertTo-Json -Depth 12), $encoding)
 $preview = Join-Path $OutputDirectory 'floating-panel-preview.png'

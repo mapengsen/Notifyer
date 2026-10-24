@@ -123,13 +123,13 @@ export function aggregateSessions(
     const acknowledgement = acknowledgementKey(session);
     const unread = session.unread && !acknowledged(acknowledgement);
     // Old viewed history is intentionally omitted; pending results remain visible.
-    if (!unread && ["completed", "failed"].includes(session.status)
+    if (!unread && !session.attention && ["completed", "failed"].includes(session.status)
       && session.updatedAt < now - 24 * 60 * 60_000) continue;
     rows.push({
       ...session, unread, acknowledgement, owners: owners.sort((a, b) => Number(b.online) - Number(a.online)),
       status: session.status === "running" && (!session.live || !online || now - session.updatedAt > quietAfterMs) ? "unknown" : session.status,
     });
   }
-  const priority = (item: PanelRow): number => item.unread ? 0 : item.status === "running" ? 1 : item.status === "unknown" ? 2 : 3;
+  const priority = (item: PanelRow): number => item.attention ? -1 : item.unread ? 0 : item.status === "running" ? 1 : item.status === "unknown" ? 2 : 3;
   return rows.sort((a, b) => priority(a) - priority(b) || b.updatedAt - a.updatedAt);
 }

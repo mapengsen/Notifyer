@@ -4,6 +4,17 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.23 - 2026-10-24
+
+### Added / 新增
+
+- Show a bold red “有新问题” badge beside the project name when Codex or Claude asks for user input. Hover for the question and click the card to open that conversation; viewing or marking a result reviewed does not answer the question.
+- Codex／Claude 提出需要用户回答的问题时，在项目名旁显示红色加粗“有新问题”。悬停查看问题、点击卡片跳转到对应对话；查看对话或标记结果已查看不算回答问题。
+- Track synchronous question outputs, Claude AskUserQuestion tool results and Codex asynchronous per-question replies. Async acceptance and turn completion preserve unanswered questions; the matching reply removes the badge automatically. Pending questions stay visible through quiet timeouts and sort before other cards.
+- 跟踪同步提问结果、Claude AskUserQuestion 及 Codex 异步问题的逐项回复。异步问题已提交或本轮运行完成时仍保留提示，收到对应回答后自动清除；长时间等待不隐藏，问题卡片排在前面。
+- New-question OS notifications respect the existing desktop-notification switch and multi-window deduplication. The red floating badge also works with desktop notifications muted.
+- 新问题的系统桌面提醒遵守原有桌面通知开关及多窗口去重；关闭桌面通知仍会显示浮窗红色提示。
+
 ## 0.4.22 - 2026-10-24
 
 ### Fixed / 修复

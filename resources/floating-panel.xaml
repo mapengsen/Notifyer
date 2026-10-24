@@ -24,6 +24,7 @@
     <SolidColorBrush x:Key="MetadataForeground" Color="#707070"/>
     <SolidColorBrush x:Key="ProjectRunningForeground" Color="#1676D2"/>
     <SolidColorBrush x:Key="ProjectUnreadForeground" Color="#B98000"/>
+    <SolidColorBrush x:Key="QuestionForeground" Color="#D32F2F"/>
     <SolidColorBrush x:Key="Accent" Color="#38B49A"/>
     <SolidColorBrush x:Key="StatusIndicator" Color="#1676D2"/>
     <SolidColorBrush x:Key="ScrollThumb" Color="#ACBCD0"/>

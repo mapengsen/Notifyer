@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 import { workspacePathsOverlap } from "./core";
-import { areDesktopNotificationsEnabled, focusOriginatingWindow, getNotificationDiagnostics } from "./notify";
+import { areDesktopNotificationsEnabled, focusOriginatingWindow, getNotificationDiagnostics, notifyDesktop } from "./notify";
 import { SessionActivity } from "./sessionActivity";
 import { focusSession, SessionFocusRequest } from "./sessionFocus";
 import { openSession } from "./sessionNavigator";
@@ -84,7 +84,26 @@ export class FloatingPanel implements vscode.Disposable {
       if (!activity.cwd || !folders.some((folder) => workspacePathsOverlap(
         folder.uri.scheme === "file" ? folder.uri.fsPath : folder.uri.path, activity.cwd,
       ))) return;
-      this.sessions.set(activity.key, applyActivity(this.sessions.get(activity.key), activity));
+      const previous = this.sessions.get(activity.key);
+      this.sessions.set(activity.key, applyActivity(previous, activity));
+      const newQuestion = activity.attention?.requestIds.some((id) => !previous?.attention?.requestIds.includes(id));
+      if (activity.live && newQuestion && activity.attention) {
+        const newIds = activity.attention.requestIds.filter((id) => !previous?.attention?.requestIds.includes(id));
+        // Allow immediately rejected/cancelled requests to settle before showing
+        // an OS notification; the floating card follows the latest state too.
+        setTimeout(() => {
+          const latest = this.sessions.get(activity.key);
+          if (this.disposed || !latest?.attention || !newIds.some((id) => latest.attention!.requestIds.includes(id))) return;
+          void notifyDesktop(`有新问题 · ${vscode.workspace.name ?? "Notifyer"}`, latest.attention.message, "info", latest.provider, {
+            workspacePath: latest.cwd,
+            deduplicationKey: `question:${latest.key}:${newIds.join(",")}`,
+            focus: async () => {
+              const target = this.sessions.get(activity.key);
+              if (target?.attention) await openSession(target, (value) => this.viewMonitor?.confirms(value) ?? false);
+            },
+          }).catch((error) => this.report(error));
+        }, 200);
+      }
     }
     if (!this.publishTimer) this.publishTimer = setTimeout(() => {
       this.publishTimer = undefined;

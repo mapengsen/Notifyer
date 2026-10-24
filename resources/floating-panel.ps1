@@ -110,7 +110,7 @@ try {
     NotificationOn='#245547'; NotificationOff='#573B43'; RunningBackground='#1A2D41'; RunningForeground='#83C9FF'
     UnreadBackground='#352F27'; UnreadForeground='#F2C685'; CardBackground='#1A273B'; CardBorder='#2C3C53'
     UnreadBorder='#756044'; TextForeground='#ECF2FC'; MetadataForeground='#929292'; Accent='#72DFC2'; ScrollThumb='#53647D'; StatusIndicator='#64B5FF'
-    ProjectRunningForeground='#83C9FF'; ProjectUnreadForeground='#F2C685'
+    ProjectRunningForeground='#83C9FF'; ProjectUnreadForeground='#F2C685'; QuestionForeground='#FF6B6B'
   }
 
   $workArea = [Windows.SystemParameters]::WorkArea
@@ -218,7 +218,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.22'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.23'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -338,16 +338,17 @@ try {
       # Old hosts can keep publishing an already-cached local /fast command.
       # Do not wait for the quiet timeout or a VS Code reload to hide it.
       if ($row.provider -eq 'claude' -and ([string]$row.title -match '^\s*<local-command-(?:caveat|stdout|stderr)(?:\s|>)' -or [string]$row.title -match '^\s*<command-name>\s*/fast\s*</command-name>(?:\s|$)')) { continue }
+      $hasQuestion = $row.attention -and [int]$row.attention.count -gt 0
       $status = [string]$row.status
       if ($Stale -and $status -eq 'running') { $status = 'unknown' }
       # Older extension hosts may still publish replayed history as running.
       # Require live activity before presenting an active spinner.
-      if ($status -eq 'running' -and $row.live -eq $false) { continue }
+      if ($status -eq 'running' -and $row.live -eq $false -and -not $hasQuestion) { continue }
       # Filter the current turn's duration, not its last log activity. Keep the
       # stored session so a later completion still becomes an unread result.
-      if ($status -eq 'running' -and $Now - [double]$row.startedAt -gt 500 * 60000) { continue }
+      if ($status -eq 'running' -and $Now - [double]$row.startedAt -gt 500 * 60000 -and -not $hasQuestion) { continue }
       $unread = $row.unread -and -not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $row.acknowledgement + '.json')))
-      if ($status -eq 'running' -or $unread) {
+      if ($status -eq 'running' -or $unread -or $hasQuestion) {
         # Including elapsed minutes in the snapshot refreshes the footer even
         # when no new log is written, at this turn's own minute boundary.
         $runningMinutes = if ($status -eq 'running') { [Math]::Max(0, [Math]::Floor(($Now - [double]$row.startedAt) / 60000)) } else { $null }
@@ -440,7 +441,7 @@ try {
         'running' { '运行中 · 已运行 ' + $visible.runningMinutes + ' 分钟' }
         'completed' { '待查看' }
         'failed' { '出错 · 待查看' }
-        default { '状态待确认' }
+        default { if ($row.attention) { '等待回答' } else { '状态待确认' } }
       }
       $color = if ($unread) { Theme-Color 'ProjectUnreadForeground' } else { Theme-Color 'ProjectRunningForeground' }
       $card = New-Object Windows.Controls.Border
@@ -484,6 +485,17 @@ try {
       $projectText.ToolTip = $label
       [Windows.Controls.Grid]::SetColumn($projectText, 1)
       $null = $statusLine.Children.Add($projectText)
+      if ($row.attention -and [int]$row.attention.count -gt 0) {
+        $statusLine.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+        $statusLine.ColumnDefinitions[2].Width = 'Auto'
+        $questionText = Text-Element '有新问题' (Theme-Color 'QuestionForeground') $script:fontSize
+        $questionText.FontWeight = 'Bold'
+        $questionText.Margin = '6,0,0,0'
+        $questionText.ToolTip = [string]$row.attention.message
+        [Windows.Controls.Grid]::SetColumn($questionText, 2)
+        $null = $statusLine.Children.Add($questionText)
+        $card.Tag.questionBadge = $questionText
+      }
       $null = $stack.Children.Add($statusLine)
       $title = Clean-SessionTitle ([string]$row.title)
       if (-not $title) { $title = '会话 ' + ([string]$row.sessionId).Substring(0, [Math]::Min(8, ([string]$row.sessionId).Length)) }
@@ -545,6 +557,10 @@ try {
         $expectedProject = Project-Name $row.owners[0].label
         if ($project.Text -ne $expectedProject -or $project.FontSize -ne $heading.FontSize -or $project.FontWeight -ne [Windows.FontWeights]::Bold -or $project.Foreground.ToString() -ne $expectedProjectColor) { throw 'The first line must show the bold project name in the running/unread color at the body font size.' }
         if ($project.TextWrapping -ne 'NoWrap' -or $project.TextTrimming -ne 'CharacterEllipsis') { throw 'Long project names must stay on one line with an ellipsis.' }
+        if ($row.attention) {
+          $badge = $card.Tag.questionBadge
+          if (-not $badge -or $badge.Text -ne '有新问题' -or $badge.FontWeight -ne [Windows.FontWeights]::Bold -or $badge.Foreground.ToString() -ne (Theme-Color 'QuestionForeground')) { throw 'Pending questions must have a bold red badge beside the project.' }
+        }
         if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Provider, status and running minutes must share one footer line.' }
         $expectedProvider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
         $expectedStatus = if ($row.status -eq 'running') { '运行中 · 已运行 ' + [Math]::Max(0, [Math]::Floor(((Now-Ms) - [double]$row.startedAt) / 60000)) + ' 分钟' } elseif ($row.status -eq 'failed') { '出错 · 待查看' } else { '待查看' }
@@ -621,6 +637,8 @@ try {
     if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
     $historyOnly = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = (Now-Ms) }
     if (@(Get-VisibleRows @($historyOnly) (Now-Ms) $false).Count -ne 0) { throw 'Baseline history from older extension hosts must not show an active spinner.' }
+    $waitingQuestion = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = ((Now-Ms) - 600 * 60000); attention = @{ count = 1; message = 'Waiting for an answer' } }
+    if (@(Get-VisibleRows @($waitingQuestion) (Now-Ms) $true).Count -ne 1) { throw 'An unanswered question must remain visible across quiet timeouts, old turns and disconnected windows.' }
     $localCommand = [pscustomobject]@{ provider = 'claude'; title = ''; status = 'running'; live = $true; unread = $false; startedAt = (Now-Ms) }
     foreach ($title in @('<command-name>/fast</command-name> <command-message>fast</command-message>', '<local-command-caveat>Local command only</local-command-caveat>', '<local-command-stdout>Fast mode unavailable</local-command-stdout>')) {
       $localCommand.title = $title
@@ -654,6 +672,16 @@ try {
     if ((Theme-Color 'MetadataForeground') -ne '#FF707070' -or (Theme-Color 'ProjectRunningForeground') -ne '#FF1676D2' -or (Theme-Color 'ProjectUnreadForeground') -ne '#FFB98000') { throw 'Day cards must use gray status, blue running projects and yellow unread projects.' }
     Assert-CardLayout
     if ($script:desktopEnabled) { throw 'Desktop notifications must default off, even with a legacy model.' }
+    $questionModel = Read-Json (Join-Path $StateRoot 'model.json')
+    $savedQuestion = $questionModel.rows[1].attention
+    $questionModel.rows[1].attention = $null
+    Write-Json (Join-Path $StateRoot 'model.json') $questionModel
+    Refresh-Panel
+    if ($script:cards[1].Tag.questionBadge) { throw 'Receiving an answer must remove the red question badge.' }
+    $questionModel.rows[1].attention = $savedQuestion
+    Write-Json (Join-Path $StateRoot 'model.json') $questionModel
+    Refresh-Panel
+    if (-not $script:cards[1].Tag.questionBadge) { throw 'A new pending question must restore the red badge.' }
     foreach ($key in @('TitleForeground','MutedForeground','ButtonForeground','RunningForeground','UnreadForeground','TextForeground')) {
       if ((Theme-Color $key) -ne '#FF000000') { throw ('Day text must be pure black: ' + $key) }
     }
@@ -698,6 +726,7 @@ try {
     $script:cards[0].Tag.readButton.RaiseEvent((New-Object Windows.RoutedEventArgs ([Windows.Controls.Button]::ClickEvent)))
     if (-not [IO.File]::Exists((Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json')))) { throw 'Read acknowledgement failed' }
     if ($script:cards.Count -ne 1 -or $controls.UnreadCount.Text -ne '待查看  0') { throw 'Reviewed results must disappear immediately.' }
+    if (-not $script:cards[0].Tag.questionBadge) { throw 'Reviewing a completed result must not dismiss another conversation question.' }
     if (@(Get-ChildItem -LiteralPath (Join-Path $StateRoot ('commands\' + $pendingRow.owners[0].windowId)) -Filter '*.json').Count -ne $focusFiles.Count) { throw 'Marking read must not activate a window.' }
     Remove-Item -LiteralPath (Join-Path $StateRoot ('read\' + $pendingRow.acknowledgement + '.json'))
     # A host acknowledgement for one selected result must not remove another
@@ -722,7 +751,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.22' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.23' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

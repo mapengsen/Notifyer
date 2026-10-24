@@ -76,6 +76,8 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 ### 3. Windows floating session window
 
+A bold red **有新问题** badge beside the project name means Codex or Claude has a question awaiting your reply. Hover for the question and click the card to open the exact conversation. The badge clears when its matching question is answered or cancelled; viewing the conversation does not clear it. Async submission acknowledgement is not an answer, and unanswered async questions remain visible after the requesting turn completes. Question cards sort first and stay visible during quiet waits. OS reminders for new questions respect the desktop-notification switch; the floating badge remains available when notifications are off.
+
 Conversation titles omit attachment transport markers, such as pasted-content tags, image paths, dimensions and coordinate hints. Readable text is retained; image-only/file-only prompts show “图片消息”/“附件消息”. Existing cached titles are also cleaned for display, without modifying original messages or logs.
 
 Use **A− / A+** in the header to decrease/increase text size immediately, one step per click (10–24 DIP). The default conversation text is now 14 DIP, up from 12; title text, bold project names, status text and counts adjust together; the gray status line stays two font sizes below the body. The selected size is saved across reopening and restarting. These controls are separate from the collapse button.
@@ -97,7 +99,7 @@ On Windows, one shared, draggable desktop window opens automatically; no extra d
 - **Running** with a continuously rotating indicator. Turns exceeding 500 minutes are hidden and excluded from the running count.
 - **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Opening the specific conversation through its card clears that result after confirmed selection; window activation alone never clears it. The **✓** button remains available for manual review. Acknowledgements synchronize across windows and survive restarts.
 
-The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Only running and unread conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
+The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Running, unread and unanswered-question conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
 Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime prompts remain black, project names retain their status color and the footer stays gray), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
 
@@ -126,6 +128,12 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 24, 2026 (0.4.23)
+
+1. Add a bold red “有新问题” badge beside projects with unanswered Codex/Claude questions; click to open that conversation.
+2. Clear each question only on its matching answer/cancellation. Async acceptance, turn completion and viewing a conversation do not dismiss unanswered async questions.
+3. Keep question cards visible while waiting and prioritize them; OS question reminders follow the existing desktop-notification switch.
 
 ## October 24, 2026 (0.4.22)
 

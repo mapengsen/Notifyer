@@ -119,7 +119,28 @@ class FloatingPanel {
             const folders = vscode.workspace.workspaceFolders ?? [];
             if (!activity.cwd || !folders.some((folder) => (0, core_1.workspacePathsOverlap)(folder.uri.scheme === "file" ? folder.uri.fsPath : folder.uri.path, activity.cwd)))
                 return;
-            this.sessions.set(activity.key, (0, floatingState_1.applyActivity)(this.sessions.get(activity.key), activity));
+            const previous = this.sessions.get(activity.key);
+            this.sessions.set(activity.key, (0, floatingState_1.applyActivity)(previous, activity));
+            const newQuestion = activity.attention?.requestIds.some((id) => !previous?.attention?.requestIds.includes(id));
+            if (activity.live && newQuestion && activity.attention) {
+                const newIds = activity.attention.requestIds.filter((id) => !previous?.attention?.requestIds.includes(id));
+                // Allow immediately rejected/cancelled requests to settle before showing
+                // an OS notification; the floating card follows the latest state too.
+                setTimeout(() => {
+                    const latest = this.sessions.get(activity.key);
+                    if (this.disposed || !latest?.attention || !newIds.some((id) => latest.attention.requestIds.includes(id)))
+                        return;
+                    void (0, notify_1.notifyDesktop)(`有新问题 · ${vscode.workspace.name ?? "Notifyer"}`, latest.attention.message, "info", latest.provider, {
+                        workspacePath: latest.cwd,
+                        deduplicationKey: `question:${latest.key}:${newIds.join(",")}`,
+                        focus: async () => {
+                            const target = this.sessions.get(activity.key);
+                            if (target?.attention)
+                                await (0, sessionNavigator_1.openSession)(target, (value) => this.viewMonitor?.confirms(value) ?? false);
+                        },
+                    }).catch((error) => this.report(error));
+                }, 200);
+            }
         }
         if (!this.publishTimer)
             this.publishTimer = setTimeout(() => {

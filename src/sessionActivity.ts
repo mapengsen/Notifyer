@@ -1,5 +1,6 @@
 import { isChildSessionMeta, isClaudeMainTaskCompletion } from "./core";
 import { cleanSessionTitle } from "./displayTitle";
+import { QuestionAttention, SessionQuestions } from "./sessionQuestions";
 
 export type SessionStatus = "running" | "completed" | "failed" | "unknown";
 export interface SessionActivity {
@@ -16,6 +17,8 @@ export interface SessionActivity {
   observedAt?: number;
   /** Baseline history must never create new unread results. */
   live: boolean;
+  /** Unanswered interactive questions; viewing the conversation does not answer them. */
+  attention?: QuestionAttention;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -52,6 +55,7 @@ export class SessionActivityTracker {
   private contextTurnId = "";
   private localCommandParent: string | undefined;
   private observedAt = 0;
+  private readonly questions = new SessionQuestions();
 
   public constructor(
     private readonly provider: SessionActivity["provider"],
@@ -60,7 +64,8 @@ export class SessionActivityTracker {
   ) {}
 
   public reset(): void {
-    if (this.current) this.emit({ ...this.current, status: "unknown", observedAt: Date.now() });
+    this.questions.reset();
+    if (this.current) this.emit({ ...this.current, status: "unknown", attention: undefined, observedAt: Date.now() });
     this.sessionId = "";
     this.cwd = "";
     this.child = false;
@@ -95,8 +100,10 @@ export class SessionActivityTracker {
         // Context alone is not proof that a task is still running.
         return;
       }
-      if (input.type === "response_item" && this.current?.status === "running") {
-        this.update("running", at, live);
+      if (input.type === "response_item") {
+        this.questions.consumeCodex(payload, at);
+        if (!this.current && this.questions.attention) this.begin(this.contextTurnId || string(payload.call_id) || String(at), at, live);
+        if (this.current) this.update(this.current.status, at, live);
         return;
       }
       if (input.type !== "event_msg") return;
@@ -108,14 +115,19 @@ export class SessionActivityTracker {
         this.begin(turnId, at, live);
       }
       if (type === "user_message") {
+        this.questions.consumeReplyText(string(payload.message));
         if (!this.current || this.current.turnId !== turnId) this.begin(turnId, at, live);
-        if (this.current) this.current.title = cleanSessionTitle(payload.message)
+        if (this.current && !string(payload.message).includes("<send_user_message_question_reply>")) this.current.title = cleanSessionTitle(payload.message)
           || ([payload.images, payload.local_images].some((images) => Array.isArray(images) && images.length > 0) ? "图片消息" : "");
       }
       if (type === "task_complete") {
         if (!this.current || this.current.turnId !== turnId) this.begin(turnId, at, live);
+        this.questions.finishTurn();
         this.update(this.turnError ? "failed" : "completed", at, live);
       } else if (type === "turn_aborted" || type === "task_aborted") {
+        // Async questions have their own reply/cancellation lifecycle and may
+        // belong to an earlier turn. Aborting unrelated work must retain them.
+        this.questions.finishTurn();
         this.update("unknown", at, live);
       } else if (type === "error") {
         if (this.current?.status === "running") {
@@ -129,6 +141,7 @@ export class SessionActivityTracker {
     }
 
     const content = record(input.message).content;
+    this.questions.consumeClaude(input, at);
     const toolResult = Array.isArray(content) && content.some((item) => record(item).type === "tool_result");
     const title = messageTitle(input.message);
     const stopReason = string(record(input.message).stop_reason);
@@ -169,6 +182,7 @@ export class SessionActivityTracker {
       this.update("running", at, live);
     } else if (input.type === "assistant") {
       if (!this.current) this.begin(string(input.uuid) || string(input.timestamp) || String(at), at, live);
+      if (isClaudeMainTaskCompletion(input)) this.questions.finishTurn();
       this.update(isClaudeMainTaskCompletion(input) ? "completed" : "running", at, live);
     } else if (toolResult && this.current?.status === "running") {
       this.update("running", at, live);
@@ -182,7 +196,7 @@ export class SessionActivityTracker {
     // Publish only the final replayed state, preserving saved unread results
     // rather than overwriting them with every earlier turn in the file.
     this.emit({ ...this.current, status: this.current.status === "running" ? "unknown" : this.current.status,
-      live: false, observedAt: now });
+      attention: this.questions.attention, live: false, observedAt: now });
   }
 
   private classifyChild(child: boolean): void {
@@ -194,6 +208,7 @@ export class SessionActivityTracker {
   }
   private begin(turnId: string, at: number, live: boolean): void {
     if (this.current?.turnId === turnId) return;
+    if (this.current) this.questions.finishTurn();
     this.turnError = false;
     this.current = {
       key: `${this.provider}:${this.source}:${this.sessionId || this.source}`,
@@ -203,7 +218,7 @@ export class SessionActivityTracker {
   }
   private update(status: SessionStatus, at: number, live: boolean): void {
     if (!this.current) return;
-    this.current = { ...this.current, cwd: this.cwd, status, updatedAt: at, observedAt: this.observedAt, live };
+    this.current = { ...this.current, cwd: this.cwd, status, attention: this.questions.attention, updatedAt: at, observedAt: this.observedAt, live };
     if (live) this.emit({ ...this.current });
   }
 }
