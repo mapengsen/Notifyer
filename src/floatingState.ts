@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { SessionActivity } from "./sessionActivity";
+import { isClaudeLocalCommandTitle, SessionActivity } from "./sessionActivity";
 
 export interface StoredSession extends SessionActivity {
   unread: boolean;
@@ -101,6 +101,8 @@ export function aggregateSessions(
   for (const snapshot of snapshots) {
     const online = !snapshot.closed && now - snapshot.heartbeat < 15_000;
     for (const session of snapshot.sessions) {
+      // Also hide control-command rows restored from an older extension host.
+      if (session.provider === "claude" && isClaudeLocalCommandTitle(session.title)) continue;
       const old = grouped.get(session.key);
       const owner = { windowId: snapshot.windowId,
         label: snapshot.environment === "ssh-remote" ? snapshot.project : `${snapshot.project} · ${snapshot.environment}`, online };

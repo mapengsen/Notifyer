@@ -218,7 +218,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.21'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.22'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -335,6 +335,9 @@ try {
   function Get-VisibleRows($Rows, [double]$Now, [bool]$Stale) {
     foreach ($row in @($Rows)) {
       if (-not $row) { continue }
+      # Old hosts can keep publishing an already-cached local /fast command.
+      # Do not wait for the quiet timeout or a VS Code reload to hide it.
+      if ($row.provider -eq 'claude' -and ([string]$row.title -match '^\s*<local-command-(?:caveat|stdout|stderr)(?:\s|>)' -or [string]$row.title -match '^\s*<command-name>\s*/fast\s*</command-name>(?:\s|$)')) { continue }
       $status = [string]$row.status
       if ($Stale -and $status -eq 'running') { $status = 'unknown' }
       # Older extension hosts may still publish replayed history as running.
@@ -618,6 +621,15 @@ try {
     if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
     $historyOnly = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = (Now-Ms) }
     if (@(Get-VisibleRows @($historyOnly) (Now-Ms) $false).Count -ne 0) { throw 'Baseline history from older extension hosts must not show an active spinner.' }
+    $localCommand = [pscustomobject]@{ provider = 'claude'; title = ''; status = 'running'; live = $true; unread = $false; startedAt = (Now-Ms) }
+    foreach ($title in @('<command-name>/fast</command-name> <command-message>fast</command-message>', '<local-command-caveat>Local command only</local-command-caveat>', '<local-command-stdout>Fast mode unavailable</local-command-stdout>')) {
+      $localCommand.title = $title
+      if (@(Get-VisibleRows @($localCommand) (Now-Ms) $false).Count -ne 0) { throw 'Cached local Claude control commands must not display as running.' }
+    }
+    foreach ($title in @('<command-name>/review</command-name> <command-message>Review code</command-message>', 'Explain how /fast works')) {
+      $localCommand.title = $title
+      if (@(Get-VisibleRows @($localCommand) (Now-Ms) $false).Count -ne 1) { throw 'Model-backed slash commands and normal prompts must remain visible.' }
+    }
     $dot = $script:cards[0].Child.Children[0].Children[0]
     $spinner = $script:cards[1].Child.Children[0].Children[0]
     if ($dot -isnot [Windows.Shapes.Ellipse] -or $dot.Fill.ToString() -ne '#FF1676D2') { throw 'Unread results must have a blue dot.' }
@@ -710,7 +722,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.21' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.22' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.22 - 2026-10-24
+
+### Fixed / 修复
+
+- Recognize Claude local-command caveats, metadata, output and matching `local_command` results so commands such as `/fast` do not become permanently running model tasks. Preserve active tasks and pending results in the same conversation.
+- 识别 Claude 本地命令声明、元数据、输出和对应的 `local_command` 结果，修复 `/fast` 等设置命令被误判为持续运行的模型任务；保留同一对话原有的运行任务和待查看结果。
+- Filter cached local-control rows from older extension hosts in both aggregation and the native panel. Model-backed slash commands and normal prompts mentioning `/fast` remain supported.
+- 汇总与原生浮窗同时过滤旧版残留的本地控制命令卡片；保留真正触发模型的斜杠命令，以及正文中提到 `/fast` 的正常任务。
+
 ## 0.4.21 - 2026-10-23
 
 ### Added / 新增

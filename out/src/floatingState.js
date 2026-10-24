@@ -43,6 +43,7 @@ exports.aggregateSessions = aggregateSessions;
 const node_crypto_1 = require("node:crypto");
 const fs = __importStar(require("node:fs"));
 const path = __importStar(require("node:path"));
+const sessionActivity_1 = require("./sessionActivity");
 function panelVisibility(heartbeat, request, now = Date.now()) {
     // Reflect a click immediately, including clicks originating in another window.
     // The helper's acknowledgement takes over as soon as it consumes the request.
@@ -92,6 +93,9 @@ function aggregateSessions(snapshots, acknowledged, now = Date.now(), quietAfter
     for (const snapshot of snapshots) {
         const online = !snapshot.closed && now - snapshot.heartbeat < 15_000;
         for (const session of snapshot.sessions) {
+            // Also hide control-command rows restored from an older extension host.
+            if (session.provider === "claude" && (0, sessionActivity_1.isClaudeLocalCommandTitle)(session.title))
+                continue;
             const old = grouped.get(session.key);
             const owner = { windowId: snapshot.windowId,
                 label: snapshot.environment === "ssh-remote" ? snapshot.project : `${snapshot.project} · ${snapshot.environment}`, online };

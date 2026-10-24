@@ -36,6 +36,12 @@ function messageTitle(message: unknown): string {
   return "";
 }
 
+/** Local transcript output and the known /fast toggle are never model tasks. */
+export function isClaudeLocalCommandTitle(title: string): boolean {
+  return /^\s*<local-command-(?:caveat|stdout|stderr)(?:\s|>)/i.test(title)
+    || /^\s*<command-name>\s*\/fast\s*<\/command-name>(?:\s|$)/i.test(title);
+}
+
 /** Tracks turns, rather than treating every assistant/tool message as a completion. */
 export class SessionActivityTracker {
   private sessionId = "";
@@ -44,6 +50,7 @@ export class SessionActivityTracker {
   private current: SessionActivity | undefined;
   private turnError = false;
   private contextTurnId = "";
+  private localCommandParent: string | undefined;
   private observedAt = 0;
 
   public constructor(
@@ -60,6 +67,7 @@ export class SessionActivityTracker {
     this.current = undefined;
     this.turnError = false;
     this.contextTurnId = "";
+    this.localCommandParent = undefined;
   }
 
   public consume(input: Record<string, unknown>, live: boolean, now = Date.now()): void {
@@ -124,6 +132,26 @@ export class SessionActivityTracker {
     const toolResult = Array.isArray(content) && content.some((item) => record(item).type === "tool_result");
     const title = messageTitle(input.message);
     const stopReason = string(record(input.message).stop_reason);
+    if (input.type === "system" && input.subtype === "local_command") {
+      // Older logs may omit the preceding caveat. Retract only a matching
+      // command turn; local output must not end a different active task.
+      if (this.current?.turnId === string(input.parentUuid)) this.update("unknown", at, live);
+      this.localCommandParent = undefined;
+      return;
+    }
+    if (input.type === "user" && /^\s*<local-command-caveat(?:\s|>)/i.test(title)) {
+      this.localCommandParent = string(input.uuid);
+      return;
+    }
+    if (input.type === "user" && !toolResult) {
+      const command = /^\s*<command-name>/i.test(title);
+      const local = command && this.localCommandParent !== undefined
+        && (!input.parentUuid || !this.localCommandParent || input.parentUuid === this.localCommandParent);
+      if (command || input.isMeta !== true) this.localCommandParent = undefined;
+      // Metadata/expanded instructions do not begin a new human turn. A real
+      // model-backed slash command without a local caveat remains trackable.
+      if (input.isMeta === true || local || isClaudeLocalCommandTitle(title)) return;
+    }
     if ((input.type === "system" && input.subtype === "api_error")
       || (input.type === "assistant" && input.isApiErrorMessage === true)
       || (input.type === "user" && /^\[Request interrupted by user(?: for tool use)?\]/.test(title))

@@ -203,6 +203,82 @@ const event = (type, payload = {}) => ({
     tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now);
     strict_1.default.equal(count, 0);
 });
+(0, node_test_1.default)("Claude's local /fast transcript does not start a model turn or unread result", () => {
+    const updates = [];
+    const tracker = new sessionActivity_1.SessionActivityTracker("claude", "remote", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "caveat", isMeta: true,
+        message: { content: "<local-command-caveat>The command below was run directly in Claude Code.</local-command-caveat>" } }, true, now);
+    tracker.consume({ type: "user", uuid: "fast", parentUuid: "caveat",
+        message: { content: "<command-name>/fast</command-name>\n<command-message>fast</command-message>\n<command-args></command-args>" } }, true, now + 1);
+    tracker.consume({ type: "system", subtype: "local_command", parentUuid: "fast" }, true, now + 2);
+    tracker.flushBaseline(now + 3);
+    strict_1.default.equal(updates.length, 0);
+});
+(0, node_test_1.default)("local command metadata and output preserve an active task and a pending completed result", () => {
+    for (const completed of [false, true]) {
+        const updates = [];
+        const tracker = new sessionActivity_1.SessionActivityTracker("claude", "local", (item) => updates.push(item));
+        tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "human", message: { content: "Real task" } }, true, now);
+        if (completed)
+            tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 1);
+        const before = (0, floatingState_1.applyActivity)(undefined, updates.at(-1));
+        const count = updates.length;
+        tracker.consume({ type: "user", uuid: "local-caveat", isMeta: true,
+            message: { content: "<local-command-caveat>Local settings command</local-command-caveat>" } }, true, now + 2);
+        tracker.consume({ type: "user", uuid: "control", parentUuid: "local-caveat",
+            message: { content: [{ type: "text", text: "<command-name>/settings-control</command-name>" }] } }, true, now + 3);
+        tracker.consume({ type: "user", uuid: "output", message: { content: "<local-command-stdout>Settings changed</local-command-stdout>" } }, true, now + 4);
+        tracker.consume({ type: "system", subtype: "local_command", parentUuid: "control" }, true, now + 5);
+        strict_1.default.equal(updates.length, count);
+        strict_1.default.deepEqual((0, floatingState_1.applyActivity)(before, updates.at(-1)), before);
+        strict_1.default.equal(before.unread, completed);
+    }
+});
+(0, node_test_1.default)("metadata cannot invent a turn, while model-backed slash commands still run and complete", () => {
+    const updates = [];
+    const tracker = new sessionActivity_1.SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "metadata", isMeta: true,
+        message: { content: "Additional context" } }, true, now);
+    strict_1.default.equal(updates.length, 0);
+    tracker.consume({ type: "user", uuid: "review", message: { content: "<command-name>/review</command-name> <command-args>Check changes</command-args>" } }, true, now + 1);
+    tracker.consume({ type: "user", uuid: "expanded", isMeta: true, message: { content: "Expanded review instructions" } }, true, now + 2);
+    tracker.consume({ type: "assistant", message: { stop_reason: "tool_use" } }, true, now + 3);
+    strict_1.default.equal(updates.at(-1)?.status, "running");
+    strict_1.default.equal(updates.at(-1)?.turnId, "review");
+    tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 4);
+    strict_1.default.equal(updates.at(-1)?.status, "completed");
+    strict_1.default.equal((0, floatingState_1.applyActivity)(undefined, updates.at(-1)).unread, true);
+});
+(0, node_test_1.default)("an unmarked local-command result retracts only its own turn", () => {
+    const updates = [];
+    const tracker = new sessionActivity_1.SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", sessionId: "session", cwd: "/work", uuid: "local", message: { content: "<command-name>/settings-control</command-name>" } }, true, now);
+    tracker.consume({ type: "system", subtype: "local_command", parentUuid: "local" }, true, now + 1);
+    strict_1.default.equal(updates.at(-1)?.status, "unknown");
+    strict_1.default.equal((0, floatingState_1.applyActivity)(undefined, updates.at(-1)).unread, false);
+    tracker.consume({ type: "user", uuid: "human", message: { content: "Explain how /fast works" } }, true, now + 2);
+    const count = updates.length;
+    tracker.consume({ type: "system", subtype: "local_command", parentUuid: "local" }, true, now + 3);
+    strict_1.default.equal(updates.length, count);
+    strict_1.default.equal(updates.at(-1)?.status, "running");
+    strict_1.default.equal(updates.at(-1)?.turnId, "human");
+});
+(0, node_test_1.default)("cached Claude control rows disappear without hiding model-backed commands or Codex", () => {
+    for (const title of ["<command-name>/fast</command-name> <command-message>fast</command-message>",
+        "<local-command-caveat>Local command only</local-command-caveat>", "<local-command-stdout>Fast mode unavailable</local-command-stdout>"]) {
+        const legacy = (0, floatingState_1.applyActivity)(undefined, activity({ provider: "claude", title }));
+        const real = (0, floatingState_1.applyActivity)(undefined, activity({ key: "claude:local:real", provider: "claude", title: "Real task", status: "completed" }));
+        const rows = (0, floatingState_1.aggregateSessions)([snapshot("window", legacy), snapshot("window", real)], () => false, now);
+        strict_1.default.deepEqual(rows.map((row) => row.key), [real.key]);
+        strict_1.default.equal(rows[0].unread, true);
+    }
+    for (const title of ["<command-name>/review</command-name>", "Explain how /fast works"]) {
+        const item = (0, floatingState_1.applyActivity)(undefined, activity({ provider: "claude", title }));
+        strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("window", item)], () => false, now)[0].status, "running");
+    }
+    const codex = (0, floatingState_1.applyActivity)(undefined, activity({ title: "<command-name>/fast</command-name>" }));
+    strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("window", codex)], () => false, now)[0].status, "running");
+});
 (0, node_test_1.default)("historical unfinished turns stay hidden until actual live activity resumes", () => {
     const updates = [];
     const tracker = new sessionActivity_1.SessionActivityTracker("claude", "local", (item) => updates.push(item));
