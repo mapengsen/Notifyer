@@ -145,6 +145,40 @@ const event = (type, payload = {}) => ({
     strict_1.default.equal(updates.at(-1)?.title, "修复登录问题");
     strict_1.default.equal(updates.at(-1)?.turnId, "turn-1");
 });
+(0, node_test_1.default)("Codex terminal time stays fixed through later bookkeeping and question replies", () => {
+    const { tracker, updates } = codexTracker();
+    tracker.consume(event("task_started"), true, now);
+    tracker.consume(event("task_complete"), true, now + 125000);
+    strict_1.default.equal(updates.at(-1)?.finishedAt, now + 125000);
+    tracker.consume(event("token_count"), true, now + 3600000);
+    tracker.consume({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "<send_user_message_question_reply>[]</send_user_message_question_reply>" }] } }, true, now + 7200000);
+    strict_1.default.equal(updates.at(-1)?.finishedAt, now + 125000);
+    strict_1.default.equal(updates.at(-1)?.startedAt, now);
+    tracker.consume(event("task_started", { turn_id: "next" }), true, now + 8000000);
+    strict_1.default.equal(updates.at(-1)?.finishedAt, undefined);
+    strict_1.default.equal(updates.at(-1)?.startedAt, now + 8000000);
+});
+(0, node_test_1.default)("Claude completion duration freezes and a new human turn gets a fresh timer", () => {
+    const updates = [];
+    const tracker = new sessionActivity_1.SessionActivityTracker("claude", "local", (item) => updates.push(item));
+    tracker.consume({ type: "user", uuid: "human", sessionId: "session", cwd: "/work", message: { content: "Task" } }, true, now);
+    tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 300000);
+    tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 3600000);
+    strict_1.default.equal(updates.at(-1)?.finishedAt, now + 300000);
+    tracker.consume({ type: "user", uuid: "next", message: { content: "Next task" } }, true, now + 7200000);
+    strict_1.default.equal(updates.at(-1)?.finishedAt, undefined);
+    strict_1.default.equal(updates.at(-1)?.startedAt, now + 7200000);
+});
+(0, node_test_1.default)("stored legacy completions retain their first endpoint and accept corrected replay timestamps", () => {
+    const completed = activity({ status: "completed", startedAt: now, updatedAt: now + 480000 });
+    const stored = (0, floatingState_1.applyActivity)(undefined, completed);
+    strict_1.default.equal(stored.finishedAt, now + 480000);
+    const refreshed = (0, floatingState_1.applyActivity)(stored, { ...completed, updatedAt: now + 3600000 });
+    strict_1.default.equal(refreshed.finishedAt, now + 480000);
+    const corrected = (0, floatingState_1.applyActivity)(refreshed, { ...completed, finishedAt: now + 420000, updatedAt: now + 7200000 });
+    strict_1.default.equal(corrected.finishedAt, now + 420000);
+    strict_1.default.equal((0, floatingState_1.applyActivity)(corrected, { ...completed, status: "running", turnId: "new", updatedAt: now + 8000000 }).finishedAt, undefined);
+});
 (0, node_test_1.default)("child identity survives inherited parent metadata, and late child classification retracts a row", () => {
     const { tracker, updates, removed } = codexTracker();
     tracker.consume(event("task_started"), true, now);

@@ -112,6 +112,43 @@ test("Codex running -> complete uses the same turn and retains its human title",
   assert.equal(updates.at(-1)?.turnId, "turn-1");
 });
 
+test("Codex terminal time stays fixed through later bookkeeping and question replies", () => {
+  const { tracker, updates } = codexTracker();
+  tracker.consume(event("task_started"), true, now);
+  tracker.consume(event("task_complete"), true, now + 125000);
+  assert.equal(updates.at(-1)?.finishedAt, now + 125000);
+  tracker.consume(event("token_count"), true, now + 3600000);
+  tracker.consume({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "<send_user_message_question_reply>[]</send_user_message_question_reply>" }] } }, true, now + 7200000);
+  assert.equal(updates.at(-1)?.finishedAt, now + 125000);
+  assert.equal(updates.at(-1)?.startedAt, now);
+  tracker.consume(event("task_started", { turn_id: "next" }), true, now + 8000000);
+  assert.equal(updates.at(-1)?.finishedAt, undefined);
+  assert.equal(updates.at(-1)?.startedAt, now + 8000000);
+});
+
+test("Claude completion duration freezes and a new human turn gets a fresh timer", () => {
+  const updates: SessionActivity[] = [];
+  const tracker = new SessionActivityTracker("claude", "local", (item) => updates.push(item));
+  tracker.consume({ type: "user", uuid: "human", sessionId: "session", cwd: "/work", message: { content: "Task" } }, true, now);
+  tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 300000);
+  tracker.consume({ type: "assistant", message: { stop_reason: "end_turn" } }, true, now + 3600000);
+  assert.equal(updates.at(-1)?.finishedAt, now + 300000);
+  tracker.consume({ type: "user", uuid: "next", message: { content: "Next task" } }, true, now + 7200000);
+  assert.equal(updates.at(-1)?.finishedAt, undefined);
+  assert.equal(updates.at(-1)?.startedAt, now + 7200000);
+});
+
+test("stored legacy completions retain their first endpoint and accept corrected replay timestamps", () => {
+  const completed = activity({ status: "completed", startedAt: now, updatedAt: now + 480000 });
+  const stored = applyActivity(undefined, completed);
+  assert.equal(stored.finishedAt, now + 480000);
+  const refreshed = applyActivity(stored, { ...completed, updatedAt: now + 3600000 });
+  assert.equal(refreshed.finishedAt, now + 480000);
+  const corrected = applyActivity(refreshed, { ...completed, finishedAt: now + 420000, updatedAt: now + 7200000 });
+  assert.equal(corrected.finishedAt, now + 420000);
+  assert.equal(applyActivity(corrected, { ...completed, status: "running", turnId: "new", updatedAt: now + 8000000 }).finishedAt, undefined);
+});
+
 test("child identity survives inherited parent metadata, and late child classification retracts a row", () => {
   const { tracker, updates, removed } = codexTracker();
   tracker.consume(event("task_started"), true, now);

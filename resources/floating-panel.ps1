@@ -92,6 +92,7 @@ try {
   $script:cards = @()
   $script:runningCount = 0
   $script:unreadCount = 0
+  $script:completedTimes = @{}
   $script:rememberGeometry = $false
   $script:geometryCollapsed = $null
   $script:geometryFontSize = $null
@@ -218,7 +219,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.24'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.25'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -352,7 +353,16 @@ try {
         # Including elapsed minutes in the snapshot refreshes the footer even
         # when no new log is written, at this turn's own minute boundary.
         $runningMinutes = if ($status -eq 'running') { [Math]::Max(0, [Math]::Floor(($Now - [double]$row.startedAt) / 60000)) } else { $null }
-        [pscustomobject]@{ row = $row; status = $status; unread = $unread; runningMinutes = $runningMinutes }
+        $totalMinutes = $null
+        $resultKey = [string]$row.acknowledgement
+        if ($status -in @('completed', 'failed')) {
+          $finishedAt = if ($row.finishedAt -and [double]$row.finishedAt -gt 0) { [double]$row.finishedAt }
+            elseif ($resultKey -and $script:completedTimes.ContainsKey($resultKey)) { $script:completedTimes[$resultKey] }
+            else { [double]$row.updatedAt }
+          if ($resultKey) { $script:completedTimes[$resultKey] = $finishedAt }
+          $totalMinutes = [Math]::Max(0, [Math]::Floor(($finishedAt - [double]$row.startedAt) / 60000))
+        } elseif ($status -eq 'running' -and $resultKey) { $script:completedTimes.Remove($resultKey) }
+        [pscustomobject]@{ row = $row; status = $status; unread = $unread; runningMinutes = $runningMinutes; totalMinutes = $totalMinutes }
       }
     }
   }
@@ -449,8 +459,8 @@ try {
       $status = $visible.status
       $statusLabel = switch ($status) {
         'running' { '运行中 · 已运行 ' + $visible.runningMinutes + ' 分钟' }
-        'completed' { '待查看' }
-        'failed' { '出错 · 待查看' }
+        'completed' { '待查看 · 共运行 ' + $visible.totalMinutes + ' 分钟' }
+        'failed' { '出错 · 待查看 · 共运行 ' + $visible.totalMinutes + ' 分钟' }
         default { if ($row.attention) { '等待回答' } else { '状态待确认' } }
       }
       $color = if ($unread) { Theme-Color 'ProjectUnreadForeground' } else { Theme-Color 'ProjectRunningForeground' }
@@ -573,7 +583,9 @@ try {
         }
         if ($card.Child.Children[2].Children[0].Children.Count -ne 1) { throw 'Provider, status and running minutes must share one footer line.' }
         $expectedProvider = if ($row.provider -eq 'codex') { 'Codex' } else { 'Claude' }
-        $expectedStatus = if ($row.status -eq 'running') { '运行中 · 已运行 ' + [Math]::Max(0, [Math]::Floor(((Now-Ms) - [double]$row.startedAt) / 60000)) + ' 分钟' } elseif ($row.status -eq 'failed') { '出错 · 待查看' } else { '待查看' }
+        $end = if ($row.finishedAt) { [double]$row.finishedAt } else { [double]$row.updatedAt }
+        $total = [Math]::Max(0, [Math]::Floor(($end - [double]$row.startedAt) / 60000))
+        $expectedStatus = if ($row.status -eq 'running') { '运行中 · 已运行 ' + [Math]::Max(0, [Math]::Floor(((Now-Ms) - [double]$row.startedAt) / 60000)) + ' 分钟' } elseif ($row.status -eq 'failed') { '出错 · 待查看 · 共运行 ' + $total + ' 分钟' } else { '待查看 · 共运行 ' + $total + ' 分钟' }
         foreach ($line in $card.Child.Children[2].Children[0].Children) {
           if ($line.Text -ne ($expectedProvider + ' · ' + $expectedStatus) -or $line.FontSize -ne $heading.FontSize - 2 -or $line.Foreground.ToString() -ne (Theme-Color 'MetadataForeground') -or $line.FontWeight -ne [Windows.FontWeights]::Normal) { throw 'The final line must show the provider and status in gray, two font sizes below the body.' }
         }
@@ -670,6 +682,20 @@ try {
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 59999) $false)[0].runningMinutes -ne 0) { throw 'A partial first minute must display zero minutes.' }
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 60000) $false)[0].runningMinutes -ne 1) { throw 'Running minutes must update at the turn boundary without new activity.' }
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt - 1000) $false)[0].runningMinutes -ne 0) { throw 'Clock differences must not display negative running minutes.' }
+    $ended = [pscustomobject]@{ status = 'completed'; unread = $true; startedAt = 1000000; finishedAt = 1480000; updatedAt = 7000000; acknowledgement = ('7' * 64) }
+    foreach ($time in @(8000000, 18000000)) {
+      if (@(Get-VisibleRows @($ended) $time $false)[0].totalMinutes -ne 8) { throw 'Pending-result runtime must stop at completion and exclude review waiting time.' }
+    }
+    $ended.status = 'failed'
+    if (@(Get-VisibleRows @($ended) 18000000 $false)[0].totalMinutes -ne 8) { throw 'Failed pending results must also show fixed total runtime.' }
+    $ended.acknowledgement = ('6' * 64); $ended.finishedAt = $null; $ended.updatedAt = 1180000
+    if (@(Get-VisibleRows @($ended) 18000000 $false)[0].totalMinutes -ne 3) { throw 'Older hosts must fall back to the stored terminal activity time.' }
+    $ended.updatedAt = 7000000
+    if (@(Get-VisibleRows @($ended) 18000000 $false)[0].totalMinutes -ne 3) { throw 'Later legacy bookkeeping must not extend an already-displayed completion.' }
+    $ended.finishedAt = 1240000
+    if (@(Get-VisibleRows @($ended) 18000000 $false)[0].totalMinutes -ne 4) { throw 'An explicit terminal timestamp must correct a legacy estimate.' }
+    $ended.finishedAt = 900000
+    if (@(Get-VisibleRows @($ended) 18000000 $false)[0].totalMinutes -ne 0) { throw 'Clock differences must not display negative completed runtime.' }
     $cutoff = $boundary.startedAt + 500 * 60000
     if (@(Get-VisibleRows @($boundary) ($cutoff - 1) $false).Count -ne 1) { throw 'A turn below 500 minutes must remain visible.' }
     if (@(Get-VisibleRows @($boundary) $cutoff $false).Count -ne 1) { throw 'Exactly 500 minutes must remain visible.' }
@@ -789,7 +815,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.24' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.25' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

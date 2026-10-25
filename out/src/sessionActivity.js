@@ -226,7 +226,8 @@ class SessionActivityTracker {
     update(status, at, live) {
         if (!this.current)
             return;
-        this.current = { ...this.current, cwd: this.cwd, status, attention: this.questions.attention, updatedAt: at, observedAt: this.observedAt, live };
+        const finishedAt = status === "completed" || status === "failed" ? this.current.finishedAt ?? at : undefined;
+        this.current = { ...this.current, cwd: this.cwd, status, finishedAt, attention: this.questions.attention, updatedAt: at, observedAt: this.observedAt, live };
         if (live)
             this.emit({ ...this.current });
     }

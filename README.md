@@ -88,7 +88,7 @@ Running status requires activity observed after startup. A historical scan recon
 
 Claude local settings commands such as `/fast`, their transcript caveats and local output do not start model tasks or clear existing pending results. The panel also hides stale `/fast` control cards published by older extension hosts. Model-backed slash commands remain monitored.
 
-The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Each card starts with the bold project name at the body font size, blue while running and yellow when awaiting review. The one-line prompt follows, with gray provider/status text beneath it, two font sizes smaller. Running cards append elapsed whole minutes to the gray footer, for example `Claude · 运行中 · 已运行 23 分钟`. Timing starts with the current turn and refreshes without new log activity. SSH host details and timestamps are hidden. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
+The default size is 280 × 440 DIP (approximately 420 × 660 pixels at 150% display scaling), with night colors. Each card starts with the bold project name at the body font size, blue while running and yellow when awaiting review. The one-line prompt follows, with gray provider/status text beneath it, two font sizes smaller. Running cards append elapsed whole minutes to the gray footer, for example `Claude · 运行中 · 已运行 23 分钟`. Timing starts with the current turn and refreshes without new log activity. Completed/error results append fixed total runtime, for example `Codex · 待查看 · 共运行 8 分钟`; whole minutes are measured from turn start to completion, excluding review waiting time and later bookkeeping. SSH host details and timestamps are hidden. Drag the header to move the panel and drag any edge or corner to resize it. Size, position and explicit theme choices save automatically and return when reopening the panel or restarting VS Code, including on a secondary monitor. Collapsing preserves the expanded size. If a display is disconnected or the header is no longer reachable, the panel returns to the nearest available display.
 
 ![Default night colors with sample data](image/floating-panel-night-preview.png)
 
@@ -130,6 +130,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 25, 2026 (0.4.25)
+
+1. Add fixed total runtime to completed/error results awaiting review, for example `Codex · 待查看 · 共运行 8 分钟`.
+2. Stop timing at completion, excluding later bookkeeping, question replies and review waiting time; support older snapshots and restart timing for new turns.
 
 ## October 24, 2026 (0.4.24)
 

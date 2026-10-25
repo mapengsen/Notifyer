@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.25 - 2026-10-25
+
+### Added / 新增
+
+- Show fixed total runtime on completed/error cards awaiting review, such as `Codex · 待查看 · 共运行 8 分钟`. Count whole minutes from the current turn's start to its terminal time; time spent waiting for review is excluded.
+- 已完成／出错的待查看卡片显示固定总运行时长，例如“Codex · 待查看 · 共运行 8 分钟”。按本轮开始到结束计算整分钟，不计等待查看的时间。
+- Preserve terminal timestamps through later bookkeeping and question replies, reset timing for new turns, and support older snapshots through a frozen display fallback.
+- 完成后的日志刷新或问题回复不延长运行时长，新轮次重新计时；兼容旧版快照并固定已显示的完成时长。
+
 ## 0.4.24 - 2026-10-24
 
 ### Added / 新增

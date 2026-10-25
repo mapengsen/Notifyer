@@ -71,6 +71,8 @@ function applyActivity(previous, incoming) {
     const sameTurn = previous?.turnId === incoming.turnId;
     return {
         ...incoming,
+        finishedAt: ["completed", "failed"].includes(incoming.status)
+            ? incoming.finishedAt ?? (sameTurn ? previous?.finishedAt : undefined) ?? incoming.updatedAt : undefined,
         unread: ["completed", "failed"].includes(incoming.status)
             && (sameTurn && previous?.status === incoming.status ? previous.unread : incoming.live),
     };
