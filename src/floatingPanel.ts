@@ -136,9 +136,9 @@ export class FloatingPanel implements vscode.Disposable {
     // A transient snapshot replacement error must not skip the UI launch.
     this.safe(() => this.publish(!this.enabled));
     if (this.enabled && !wasEnabled) this.safe(() => {
-      const request = this.visibilityRequest();
-      // A hide click made while settings are being enabled must win.
-      if (request?.type !== "hide" || Date.now() - request.requestedAt >= 10_000) this.show();
+      // Collect status in the background. A newly opened VS Code window must
+      // neither show a hidden panel nor hide one the user already opened.
+      if (!isPanelHealthy(this.heartbeat())) this.launch();
     });
     if (!this.enabled && wasEnabled) this.safe(() => { this.command("hide"); });
   }
@@ -254,15 +254,19 @@ export class FloatingPanel implements vscode.Disposable {
     return request;
   }
   private async open(): Promise<void> {
-    const request = this.command("show");
+    let request = this.command("show");
     if (!this.enabled) {
       await vscode.workspace.getConfiguration("codexTaskCompanion.floatingWindow")
         .update("enabled", true, vscode.ConfigurationTarget.Global);
       this.enabled = true;
+      if (this.visibilityRequest()?.type === "hide") return;
+      // Enabling collection can start a hidden helper while this request is
+      // in flight. Issue a fresh request so startup cannot consume this click.
+      request = this.command("show");
     }
     if (this.visibilityRequest()?.type === "hide") return;
     this.safe(() => this.publish());
-    if (!isPanelHealthy(this.heartbeat())) this.launch();
+    if (!isPanelHealthy(this.heartbeat())) this.launch(false);
     const deadline = Date.now() + 10_000;
     while (!this.disposed && Date.now() < deadline && !isPanelHealthy(this.heartbeat()) && !this.existingHelperDetected) {
       if (this.visibilityRequest()?.type === "hide") return;
@@ -291,25 +295,22 @@ export class FloatingPanel implements vscode.Disposable {
     this.statusItem.tooltip = visible ? "Notifyer：点击隐藏桌面悬浮窗" : "Notifyer：点击显示桌面悬浮窗";
     this.statusItem.accessibilityInformation = { label: this.statusItem.tooltip, role: "button" };
   }
-  private show(): void {
-    this.command("show");
-    if (!isPanelHealthy(this.heartbeat())) this.launch();
-  }
   private heartbeat(): PanelHeartbeat | undefined {
     try {
       return JSON.parse(fs.readFileSync(path.join(this.root, "panel-heartbeat.json"), "utf8")) as PanelHeartbeat;
     } catch { return undefined; }
   }
-  private launch(): void {
+  private launch(startHidden = true): void {
     this.lastLaunchAt = Date.now();
     this.launchAttempts += 1;
     this.existingHelperDetected = false;
     const executable = path.join(process.env.SystemRoot || process.env.WINDIR || "C:\\Windows",
       "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
     this.output.appendLine(`${new Date().toISOString()} Starting floating window (attempt ${this.launchAttempts})`);
+    const visibilityArgs = startHidden ? ["-StartHidden", "-InitialControlId", this.visibilityRequest()?.id || "none"] : [];
     const child = spawn(executable, ["-NoProfile", "-STA", "-WindowStyle", "Hidden",
       "-ExecutionPolicy", "Bypass", "-File", path.join(this.context.extensionPath, "resources", "floating-panel.ps1"),
-      "-StateRoot", this.root, "-InstanceKey", digest(this.root).slice(0, 24)],
+      "-StateRoot", this.root, "-InstanceKey", digest(this.root).slice(0, 24), ...visibilityArgs],
     { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");

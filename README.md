@@ -37,7 +37,7 @@ The `main` branch contains the complete local Notifyer project: `src/`, `out/`, 
 
 1. Install or update **Notifyer** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion). For a remote project, enable it in the local VS Code UI. Each window to be monitored needs this version enabled in the same profile.
 2. After updating, run **Developer: Reload Window** in each open VS Code window. Start a Codex / Claude Code conversation, or run a Python command in an integrated terminal.
-3. On Windows, the floating window opens automatically. **Click Notifyer in the bottom-right VS Code status bar to show/hide it**, without opening the command palette. Click the sun/moon icon to change colors. Desktop notifications default to off; enable them with **桌面通知 关** or **Notifyer: Toggle Desktop Notifications** (available on all platforms). Click a card to open its exact conversation; confirmed selection marks that result reviewed. If selection cannot be confirmed, the reminder and manual checkmark remain available.
+3. On Windows, the floating window starts hidden while status collection continues in the background. **Click Notifyer in the bottom-right VS Code status bar to show/hide it**, without opening the command palette. Click the sun/moon icon to change colors. Desktop notifications default to off; enable them with **桌面通知 关** or **Notifyer: Toggle Desktop Notifications** (available on all platforms). Click a card to open its exact conversation; confirmed selection marks that result reviewed. If selection cannot be confirmed, the reminder and manual checkmark remain available.
 
 | Command palette action | Purpose |
 | --- | --- |
@@ -96,7 +96,7 @@ Day colors (sample data):
 
 ![Windows floating session window in day colors](image/floating-panel-preview.png)
 
-On Windows, one shared, draggable desktop window opens automatically; no extra desktop runtime is required. Install and enable this version of Notifyer in each VS Code window using the same VS Code profile. Remote SSH, WSL and container windows report sessions accessible to the local UI extension. The panel refreshes approximately every two seconds and shows each conversation's latest turn:
+On Windows, one shared desktop window starts hidden; click the bottom-right Notifyer status bar entry to show it. Background collection continues while hidden, and no extra desktop runtime is required. Opening another VS Code window preserves a panel you already opened manually. Install and enable this version of Notifyer in each VS Code window using the same VS Code profile. Remote SSH, WSL and container windows report sessions accessible to the local UI extension. The panel refreshes approximately every two seconds and shows each conversation's latest turn:
 
 - **Running** with a continuously rotating indicator. Turns exceeding 500 minutes are hidden and excluded from the running count.
 - **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Opening the specific conversation through its card clears that result after confirmed selection; window activation alone never clears it. The **✓** button remains available for manual review. Acknowledgements synchronize across windows and survive restarts.
@@ -130,6 +130,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 25, 2026 (0.4.26)
+
+1. Keep the desktop floating window hidden on startup and automatic recovery while continuing background collection. Click the bottom-right Notifyer status bar entry to open it.
+2. Preserve a shared panel already opened manually, ignore stale show requests and honor newer clicks during startup or re-enabling collection.
 
 ## October 25, 2026 (0.4.25)
 

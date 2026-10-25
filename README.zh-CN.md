@@ -37,7 +37,7 @@ Notifyer 提供 Codex、Claude Code 主任务与 Terminal 命令完成通知，�
 
 1. 从 [VS Code 插件市场](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-task-companion) 安装或更新 **Notifyer**。使用远程项目时，在本地 VS Code UI 侧启用；需要监控的各窗口都应在同一用户配置下启用此版本。
 2. 更新后，在各个已打开的 VS Code 窗口执行 **Developer: Reload Window**，然后启动 Codex / Claude Code 对话，或在集成终端运行 Python 命令。
-3. Windows 桌面会自动显示悬浮窗，点击 **VS Code 底部右侧状态栏的 Notifyer 图标**即可显示／隐藏，无需打开命令面板。点击太阳／月亮图标切换配色；桌面通知默认关闭，需要时点击“桌面通知 关”开启，或运行 **Notifyer: Toggle Desktop Notifications**（所有平台可用）。点击会话卡片打开对应对话，确认选中后自动标记已查看；无法确认时保留提醒，也可手动标记。
+3. Windows 悬浮窗启动时默认隐藏并继续后台采集，点击 **VS Code 底部右侧状态栏的 Notifyer 图标**即可显示／隐藏，无需打开命令面板。点击太阳／月亮图标切换配色；桌面通知默认关闭，需要时点击“桌面通知 关”开启，或运行 **Notifyer: Toggle Desktop Notifications**（所有平台可用）。点击会话卡片打开对应对话，确认选中后自动标记已查看；无法确认时保留提醒，也可手动标记。
 
 | 命令面板操作 | 用途 |
 | --- | --- |
@@ -96,7 +96,7 @@ Claude 的 `/fast` 等本地设置命令、日志中的本地命令声明及输�
 
 ![Windows 悬浮窗白天配色](image/floating-panel-preview.png)
 
-Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运行时。每个 VS Code 窗口都需要安装并启用此版本的 Notifyer，使用相同的 VS Code 用户配置；Remote SSH、WSL 或容器窗口仍由本机 UI 扩展采集当前可访问的会话。界面每约 2 秒更新，显示每个对话最新一轮的状态：
+Windows 上的共享悬浮窗默认隐藏启动，点击 VS Code 底部右侧 Notifyer 图标后显示，无需另外安装桌面运行时。隐藏期间继续后台采集；新开其他 VS Code 窗口会保留已手动打开的小窗。每个 VS Code 窗口都需要安装并启用此版本的 Notifyer，使用相同的 VS Code 用户配置；Remote SSH、WSL 或容器窗口仍由本机 UI 扩展采集当前可访问的会话。界面每约 2 秒更新，显示每个对话最新一轮的状态：
 
 - **运行中**：前方显示持续转圈的图标；本轮运行超过 500 分钟后隐藏，同时不计入运行中数量。
 - **待查看 / 出错 · 待查看**：前方显示蓝点；点击卡片打开指定对话并确认选中后，该结果自动移除，也可手动点击 **✓**（标记已查看）。只返回窗口不会清除待查看；已查看标记在各窗口之间共享，重启后保留。
@@ -130,6 +130,11 @@ Windows 上默认自动显示一份共享悬浮窗，无需另外安装桌面运
 Agent Center：[marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # 更新日志：
+
+## 2026年10月25日（0.4.26）：
+
+1. 桌面悬浮窗默认隐藏启动，自动恢复也不主动弹出，后台采集继续；点击底部右侧 Notifyer 图标显示。
+2. 保留已手动打开的共享小窗，忽略旧显示请求，并响应启动中或重新启用采集时的新点击。
 
 ## 2026年10月25日（0.4.25）：
 

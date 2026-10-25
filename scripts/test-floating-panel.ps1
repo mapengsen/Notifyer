@@ -41,6 +41,27 @@ try {
   & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $restoreScript -Helper $scriptFile -Root $OutputDirectory
   if ($LASTEXITCODE -ne 0) { throw 'Geometry restoration failed' }
 } finally { [IO.File]::WriteAllText($preferencesFile, $originalPreferences, $encoding) }
+$visibilityScript = Join-Path $OutputDirectory 'check-startup-visibility.ps1'
+$visibilitySource = @'
+param([string]$Helper, [string]$Root, [string]$Expected)
+$ErrorActionPreference = 'Stop'
+. $Helper -StateRoot $Root -InstanceKey ([guid]::NewGuid().ToString('N').Substring(0,24)) -ValidateOnly -StartHidden -InitialControlId 'saved-show'
+try {
+  if ($script:requestedVisible -ne ($Expected -eq 'shown')) { throw 'Startup must ignore the captured request and honor a newer manual request.' }
+  if ($script:window.IsVisible) { throw 'Visibility validation must never open a desktop window.' }
+  [Console]::Out.WriteLine('startup-visibility=' + $Expected)
+} finally { $script:window.Close() }
+'@
+[IO.File]::WriteAllText($visibilityScript, $visibilitySource, $encoding)
+$controlFile = Join-Path $OutputDirectory 'control.json'
+$savedControl = [IO.File]::ReadAllText($controlFile)
+try {
+  foreach ($case in @(@{ id = 'saved-show'; type = 'show'; expected = 'hidden' }, @{ id = 'new-show'; type = 'show'; expected = 'shown' }, @{ id = 'new-hide'; type = 'hide'; expected = 'hidden' })) {
+    [IO.File]::WriteAllText($controlFile, (@{ id = $case.id; type = $case.type; requestedAt = $now } | ConvertTo-Json), $encoding)
+    & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $visibilityScript -Helper $scriptFile -Root $OutputDirectory -Expected $case.expected
+    if ($LASTEXITCODE -ne 0) { throw 'Default-hidden startup validation failed' }
+  }
+} finally { [IO.File]::WriteAllText($controlFile, $savedControl, $encoding) }
 $nightPreview = Join-Path $OutputDirectory 'floating-panel-night-preview.png'
 & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $scriptFile -StateRoot $OutputDirectory -InstanceKey $instanceKey -PreviewPath $nightPreview -PreviewTheme night
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $nightPreview)) { throw 'Night theme preview missing' }

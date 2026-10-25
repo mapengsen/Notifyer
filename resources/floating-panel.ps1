@@ -3,6 +3,7 @@
   [Parameter(Mandatory = $true)][ValidatePattern('^[a-f0-9]{24}$')][string]$InstanceKey,
   [switch]$ValidateOnly,
   [switch]$StartHidden,
+  [string]$InitialControlId,
   [string]$PreviewPath = "",
   [ValidateSet('', 'day', 'night')][string]$PreviewTheme = '',
   [switch]$SelfTest
@@ -85,7 +86,9 @@ try {
   $script:fontSize = 14
   $script:desktopEnabled = $false
   $script:lastModel = ''
-  $script:lastControl = if ($StartHidden) { (Read-Json (Join-Path $StateRoot 'control.json')).id } else { '' }
+  # Ignore only the request captured by the launcher. A newer manual show click
+  # arriving while PowerShell starts must still open the window.
+  $script:lastControl = if ($StartHidden) { if ($PSBoundParameters.ContainsKey('InitialControlId')) { $InitialControlId } else { (Read-Json (Join-Path $StateRoot 'control.json')).id } } else { '' }
   $script:requestedVisible = -not $StartHidden
   $script:lastResponse = 0
   $script:lastLiveAt = Now-Ms
@@ -219,7 +222,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.25'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.26'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -414,7 +417,10 @@ try {
     if ($control -and $control.id -ne $script:lastControl) {
       $script:lastControl = $control.id
       if ($control.type -eq 'hide') { $script:requestedVisible = $false; $script:window.Hide() }
-      if ($control.type -eq 'show') { $script:requestedVisible = $true; $script:window.Show() }
+      if ($control.type -eq 'show') {
+        $script:requestedVisible = $true
+        if (-not ($ValidateOnly -or $PreviewPath -or $SelfTest)) { $script:window.Show() }
+      }
     }
     $response = Read-Json (Join-Path $StateRoot 'response.json')
     if ($response -and [double]$response.at -gt $script:lastResponse) {
@@ -815,7 +821,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.25' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.26' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

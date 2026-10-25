@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.26 - 2026-10-25
+
+### Changed / 调整
+
+- Start and automatically recover the Windows floating helper hidden by default while background collection continues. Open it manually with the bottom-right Notifyer status bar entry or the Show Floating Window command.
+- Windows 悬浮窗默认隐藏启动，自动恢复时也不主动弹出，后台采集继续。点击 VS Code 底部右侧 Notifyer 图标或执行 Show Floating Window 命令显示。
+- Opening another VS Code window preserves the shared panel's manual visibility. Ignore stale startup show requests while honoring newer manual clicks, including when collection is enabled from the show command.
+- 新开其他 VS Code 窗口保留共享小窗的手动显隐状态；启动时忽略旧的显示请求，保留启动过程中及重新启用采集时的新手动点击。
+
 ## 0.4.25 - 2026-10-25
 
 ### Added / 新增

@@ -2,7 +2,7 @@
   "name": "codex-task-companion",
   "displayName": "Notifyer",
   "description": "Desktop notifications and a Windows floating session monitor for Codex, Claude and VS Code terminal tasks.",
-  "version": "0.4.25",
+  "version": "0.4.26",
   "publisher": "pengsen",
   "license": "MIT",
   "icon": "resources/images/vscode-plugin.png",
@@ -79,7 +79,7 @@
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "description": "在 Windows 桌面显示共享会话悬浮窗，汇总同一 VS Code 用户配置下各窗口的 Codex / Claude 状态。关闭后停止悬浮窗状态采集；原有通知不受影响。"
+          "description": "在后台采集同一 VS Code 用户配置下各窗口的 Codex / Claude 状态。Windows 桌面悬浮窗默认隐藏，点击状态栏 Notifyer 图标显示。关闭此设置后停止悬浮窗状态采集；原有通知不受影响。"
         },
         "codexTaskCompanion.floatingWindow.quietAfterMinutes": {
           "type": "number",
@@ -245,7 +245,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js out/src/test/sessionSelection.test.js out/src/test/sessionViewMonitor.test.js out/src/test/sessionMonitor.test.js out/src/test/sessionQuestions.test.js",
+    "test:unit": "npm run compile && node --test out/src/test/core.test.js out/src/test/floating.test.js out/src/test/notificationPolicy.test.js out/src/test/sessionFocus.test.js out/src/test/sessionSelection.test.js out/src/test/sessionViewMonitor.test.js out/src/test/sessionMonitor.test.js out/src/test/sessionQuestions.test.js out/src/test/floatingStartup.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "npm run compile && vsce package"
   },
