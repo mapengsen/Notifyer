@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.27 - 2026-10-26
+
+### Fixed / 修复
+
+- Keep Claude tasks running while their background agents or commands remain pending. A main-agent `end_turn` while waiting no longer produces a completion card or desktop completion reminder; wait for matching background results and the main assistant's final response.
+- Claude 等待后台 Agent 或命令时继续显示运行中，不再把中途的 `end_turn` 误判为完成；收到对应后台结果、主 Agent 完成回复后，才进入待查看并发送完成提醒。
+- Treat user-form and queued-attachment task notifications as receipts within the original task. Preserve its prompt, turn identity and start time; match completion/failure/cancellation to the exact task, and deduplicate completion reminders per human turn.
+- 后台任务通知归属原来的用户任务，不再显示 `<task-notification>` 标记、不重置标题或计时；按任务标识核对完成、失败和取消，同一用户轮次只提醒一次。
+
 ## 0.4.26 - 2026-10-25
 
 ### Changed / 调整

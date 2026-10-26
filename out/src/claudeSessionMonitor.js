@@ -166,10 +166,11 @@ class ClaudeSessionMonitor {
         if (record.isSidechain === true || stringValue(record.agent_id) || stringValue(record.agentId)) {
             tracker.isSidechain = true;
         }
-        if (!(0, core_1.isClaudeMainTaskCompletion)(record) || tracker.isSidechain)
+        const turnId = tracker.activity.completedTurnId;
+        if (!(0, core_1.isClaudeMainTaskCompletion)(record) || tracker.isSidechain || !turnId)
             return;
         const sessionId = tracker.sessionId ?? inferSessionId(tracker.uri);
-        const eventId = `${sessionId}:${stringValue(record.uuid) ?? String(record.timestamp ?? tracker.offset)}`;
+        const eventId = `${sessionId}:${turnId}`;
         if (this.processedEventIds.has(eventId))
             return;
         this.processedEventIds.add(eventId);

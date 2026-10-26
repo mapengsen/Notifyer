@@ -43,10 +43,10 @@ const path = __importStar(require("node:path"));
 const vm = __importStar(require("node:vm"));
 const node_test_1 = __importDefault(require("node:test"));
 /** Run the production monitor against a remote filesystem, without a live VS Code host. */
-function fixture() {
+function fixture(provider = "codex") {
     const home = "/data/home/mapengsen";
     const workspace = `${home}/opticaldna_pixel`;
-    const root = `${home}/.codex/sessions`;
+    const root = `${home}/.${provider === "claude" ? "claude/projects" : "codex/sessions"}`;
     const authority = "ssh-remote+server";
     let clock = Date.now();
     class Uri {
@@ -100,7 +100,7 @@ function fixture() {
             },
         },
     };
-    const file = path.resolve(__dirname, "../sessionMonitor.js");
+    const file = path.resolve(__dirname, provider === "claude" ? "../claudeSessionMonitor.js" : "../sessionMonitor.js");
     const localRequire = (0, node_module_1.createRequire)(file);
     const module = { exports: {} };
     vm.runInNewContext(fs.readFileSync(file, "utf8"), { exports: module.exports, module, Buffer, console,
@@ -109,7 +109,8 @@ function fixture() {
             notifyDesktop: async (title) => { notifications.push(title); return { delivered: true, outcome: "delivered" }; },
         } : localRequire(name),
     });
-    const monitor = new module.exports.CodexSessionMonitor((activity) => activities.push(activity));
+    const Monitor = module.exports[provider === "claude" ? "ClaudeSessionMonitor" : "CodexSessionMonitor"];
+    const monitor = new Monitor((activity) => activities.push(activity));
     const event = (type, turnId = "turn-old", extra = {}) => ({ type: "event_msg", timestamp: new Date(clock).toISOString(),
         payload: { type, turn_id: turnId, ...extra } });
     const meta = (id = "session-old") => ({ type: "session_meta", payload: { id, cwd: workspace, source: "vscode" } });
@@ -125,6 +126,39 @@ function fixture() {
     return { root, home, authority, reads, activities, notifications, monitor, event, meta, write, append,
         now: () => clock, tick: () => monitor.poll(true) };
 }
+(0, node_test_1.default)("Claude monitor suppresses premature notifications and notifies once for the final human task", async () => {
+    const f = fixture("claude");
+    const file = `${f.root}/project/session.jsonl`;
+    const row = (type, uuid, content, extra = {}) => ({ type, uuid, sessionId: "session", cwd: `${f.home}/opticaldna_pixel`,
+        timestamp: new Date(f.now()).toISOString(), message: { content }, ...extra });
+    const end = (uuid) => row("assistant", uuid, [{ type: "text", text: "Report" }], { message: { stop_reason: "end_turn" } });
+    f.write(file, [row("user", "historical", "Earlier task"), end("old-end")]);
+    try {
+        await f.monitor.start();
+        strict_1.default.equal(f.notifications.length, 0);
+        f.append(file, [row("user", "human", "Build figures"),
+            row("assistant", "launch", [{ type: "tool_use", id: "tool", name: "Agent", input: { run_in_background: "true" } }]),
+            row("user", "launched", [{ type: "tool_result", tool_use_id: "tool", content: "launched" }], { toolUseResult: { isAsync: true, status: "async_launched", agentId: "agent" } }),
+            end("waiting")]);
+        await f.tick();
+        strict_1.default.equal(f.activities.at(-1)?.status, "running");
+        strict_1.default.equal(f.notifications.length, 0);
+        f.append(file, [row("user", "notice", "<task-notification><task-id>agent</task-id><status>completed</status></task-notification>")]);
+        await f.tick();
+        strict_1.default.equal(f.activities.at(-1)?.turnId, "human");
+        strict_1.default.equal(f.notifications.length, 0);
+        f.append(file, [end("final-thinking"), end("final-text")]);
+        await f.tick();
+        strict_1.default.equal(f.activities.at(-1)?.status, "completed");
+        strict_1.default.equal(f.activities.at(-1)?.title, "Build figures");
+        strict_1.default.equal(f.notifications.length, 1);
+        await f.tick();
+        strict_1.default.equal(f.notifications.length, 1);
+    }
+    finally {
+        f.monitor.dispose();
+    }
+});
 (0, node_test_1.default)("mounted remote home and resumed old-date logs are monitored by modification time", async () => {
     const f = fixture();
     const old = `${f.root}/2026/09/17/rollout-old.jsonl`;

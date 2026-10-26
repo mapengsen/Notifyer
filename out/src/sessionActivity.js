@@ -5,6 +5,7 @@ exports.isClaudeLocalCommandTitle = isClaudeLocalCommandTitle;
 const core_1 = require("./core");
 const displayTitle_1 = require("./displayTitle");
 const sessionQuestions_1 = require("./sessionQuestions");
+const claudeTasks_1 = require("./claudeTasks");
 function record(value) {
     return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -44,6 +45,10 @@ class SessionActivityTracker {
     localCommandParent;
     observedAt = 0;
     questions = new sessionQuestions_1.SessionQuestions();
+    claudeTasks = new claudeTasks_1.ClaudeTasks();
+    get completedTurnId() {
+        return this.current?.status === "completed" ? this.current.turnId : undefined;
+    }
     constructor(provider, source, emit) {
         this.provider = provider;
         this.source = source;
@@ -51,6 +56,7 @@ class SessionActivityTracker {
     }
     reset() {
         this.questions.reset();
+        this.claudeTasks.reset();
         if (this.current)
             this.emit({ ...this.current, status: "unknown", attention: undefined, observedAt: Date.now() });
         this.sessionId = "";
@@ -137,6 +143,14 @@ class SessionActivityTracker {
             return;
         }
         const content = record(input.message).content;
+        const background = this.claudeTasks.consume(input);
+        if (background.notification) {
+            // Background receipts resume the same human task. They neither replace
+            // its title/start time nor complete it before the main assistant returns.
+            if (this.current && (background.changed || this.current.status === "running"))
+                this.update("running", at, live);
+            return;
+        }
         this.questions.consumeClaude(input, at);
         const toolResult = Array.isArray(content) && content.some((item) => record(item).type === "tool_result");
         const title = messageTitle(input.message);
@@ -185,9 +199,10 @@ class SessionActivityTracker {
         else if (input.type === "assistant") {
             if (!this.current)
                 this.begin(string(input.uuid) || string(input.timestamp) || String(at), at, live);
-            if ((0, core_1.isClaudeMainTaskCompletion)(input))
+            const completed = (0, core_1.isClaudeMainTaskCompletion)(input) && !this.claudeTasks.hasPending;
+            if (completed)
                 this.questions.finishTurn();
-            this.update((0, core_1.isClaudeMainTaskCompletion)(input) ? "completed" : "running", at, live);
+            this.update(completed ? "completed" : "running", at, live);
         }
         else if (toolResult && this.current?.status === "running") {
             this.update("running", at, live);
