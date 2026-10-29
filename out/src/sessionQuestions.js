@@ -33,11 +33,14 @@ class SessionQuestions {
             if (!item.asynchronous)
                 this.pending.delete(id);
     }
-    consumeCodex(payload, at) {
+    consumeCodex(payload, at, contextTurnId = "") {
+        const metadata = { ...parse(payload.internal_chat_message_metadata_passthrough), ...parse(payload.metadata) };
+        const turnId = text(metadata.working_turn_id) || text(metadata.turn_id) || text(payload.turn_id) || contextTurnId;
+        const exchangeId = text(metadata.turn_exchange_id);
         const name = text(payload.name).split(".").at(-1);
         const id = text(payload.call_id);
         if (payload.type === "function_call" && ["request_user_input", "request_user_input_async"].includes(name ?? "")) {
-            this.add(id, parse(payload.arguments).questions, name === "request_user_input_async", at);
+            this.add(id, parse(payload.arguments).questions, name === "request_user_input_async", at, turnId, exchangeId);
         }
         else if (payload.type === "function_call_output" && this.pending.has(id)) {
             const result = parse(payload.output);
@@ -47,7 +50,23 @@ class SessionQuestions {
                 this.pending.delete(id);
         }
         else if (payload.type === "message" && payload.role === "user") {
-            this.consumeReplyText(this.messageText(payload));
+            const message = this.messageText(payload);
+            this.consumeReplyText(message);
+            // The native question UI drops the previous human turn's questionnaire
+            // when a new human prompt supersedes it, even without a numbered reply.
+            // Automatic turns, steering, system messages and replies are not that signal.
+            if (!message.includes("<send_user_message_question_reply>") && metadata.is_user_system_message !== true
+                && metadata.codex_optimistic_steering_user !== true && payload.isMeta !== true
+                && (message.trim() || (Array.isArray(payload.content) && payload.content.some((value) => ["input_image", "image", "input_file", "file"].includes(text(object(value).type)))))) {
+                for (const [requestId, question] of this.pending) {
+                    const sameTurn = turnId && question.turnId === turnId;
+                    const sameExchange = exchangeId && question.exchangeId === exchangeId;
+                    const differentTurn = turnId && question.turnId && question.turnId !== turnId;
+                    const differentExchange = exchangeId && question.exchangeId && question.exchangeId !== exchangeId;
+                    if (!sameTurn && !sameExchange && (differentTurn || differentExchange))
+                        this.pending.delete(requestId);
+                }
+            }
         }
     }
     consumeClaude(input, at) {
@@ -102,14 +121,14 @@ class SessionQuestions {
             return message.content;
         return Array.isArray(message.content) ? message.content.map((item) => text(object(item).text)).join("\n") : "";
     }
-    add(id, values, asynchronous, at) {
+    add(id, values, asynchronous, at, turnId = "", exchangeId = "") {
         if (!id || !Array.isArray(values) || !values.length || this.pending.has(id))
             return;
         const questions = new Map(values.map((value, index) => {
             const item = object(value);
             return [String(index), (text(item.question) || text(item.title) || "有问题等待你的回答").replace(/\s+/g, " ").slice(0, 300)];
         }));
-        this.pending.set(id, { asynchronous, questions, askedAt: at });
+        this.pending.set(id, { asynchronous, questions, askedAt: at, turnId, exchangeId });
     }
 }
 exports.SessionQuestions = SessionQuestions;

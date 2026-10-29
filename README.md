@@ -78,7 +78,7 @@ When you click a desktop notification, Notifyer targets the exact VS Code window
 
 Click **全部已读** beside **置顶** to mark all currently listed completed/error results reviewed across windows, without switching conversations. Running tasks, unanswered questions and later completions remain. The button is disabled when no results await review.
 
-A bold red **有新问题** badge beside the project name means Codex or Claude has a question awaiting your reply. Hover for the question and click the card to open the exact conversation. The badge clears when its matching question is answered or cancelled; viewing the conversation does not clear it. Async submission acknowledgement is not an answer, and unanswered async questions remain visible after the requesting turn completes. Question cards sort first and stay visible during quiet waits. OS reminders for new questions respect the desktop-notification switch; the floating badge remains available when notifications are off.
+A bold red **有新问题** badge beside the project name means Codex or Claude has a question awaiting your reply. Hover for the question and click the card to open the exact conversation. The badge clears when its matching question is answered or cancelled; viewing the conversation does not clear it. Async submission acknowledgement is not an answer, and unanswered async questions remain visible after the requesting turn completes. For Codex, a later human prompt that supersedes the earlier turn's questionnaire also removes the old badge, matching its native UI even without a numbered reply. Logged turn/exchange identifiers preserve same-turn steering and current questions; system messages and automatic continuations do not dismiss questions. History replay reconciles these transitions silently. Question cards sort first and stay visible during quiet waits. OS reminders for new questions respect the desktop-notification switch; the floating badge remains available when notifications are off.
 
 Conversation titles omit attachment transport markers, such as pasted-content tags, image paths, dimensions and coordinate hints. Readable text is retained; image-only/file-only prompts show “图片消息”/“附件消息”. Existing cached titles are also cleaned for display, without modifying original messages or logs.
 
@@ -132,6 +132,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## October 29, 2026 (0.4.28)
+
+1. Fix historical Codex question badges remaining after a new human turn supersedes their questionnaire, including free-text continuation.
+2. Reconcile history silently using turn/exchange identity; preserve current questions, same-turn steering, system messages, automatic continuations and review state.
 
 ## October 26, 2026 (0.4.27)
 

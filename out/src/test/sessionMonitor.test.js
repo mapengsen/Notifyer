@@ -126,6 +126,38 @@ function fixture(provider = "codex") {
     return { root, home, authority, reads, activities, notifications, monitor, event, meta, write, append,
         now: () => clock, tick: () => monitor.poll(true) };
 }
+(0, node_test_1.default)("Codex monitor reconciles superseded historical questions and isolates live questions by conversation", async () => {
+    const f = fixture();
+    const last = (id) => f.activities.filter((activity) => activity.sessionId === id).at(-1);
+    const file = `${f.root}/2026/09/17/resumed.jsonl`, other = `${f.root}/2026/10/29/other.jsonl`;
+    const request = (turnId) => ({ type: "response_item", payload: { type: "function_call", name: "request_user_input_async", call_id: "shared-call-id",
+            arguments: JSON.stringify({ questions: [{ title: "Continue?" }] }), internal_chat_message_metadata_passthrough: { turn_id: turnId } } });
+    const human = (turnId) => ({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "New instructions" }],
+            internal_chat_message_metadata_passthrough: { turn_id: turnId } } });
+    const accepted = { type: "response_item", payload: { type: "function_call_output", call_id: "shared-call-id", output: '{"accepted":true}' } };
+    f.write(file, [f.meta(), f.event("task_started", "old"), request("old"), accepted, f.event("task_complete", "old"),
+        f.event("task_started", "new"), human("new"), f.event("task_complete", "new")]);
+    f.write(other, [f.meta("other"), f.event("task_started", "other-turn"), request("other-turn"), accepted]);
+    try {
+        await f.monitor.start();
+        strict_1.default.equal(last("session-old")?.attention, undefined);
+        strict_1.default.equal(last("other")?.attention?.count, 1);
+        strict_1.default.equal(f.notifications.length, 0);
+        f.append(file, [f.event("task_started", "live"), human("live"), request("live"), accepted]);
+        await f.tick();
+        strict_1.default.equal(last("session-old")?.attention?.count, 1);
+        f.append(file, [f.event("task_started", "next")]);
+        await f.tick();
+        strict_1.default.equal(last("session-old")?.attention?.count, 1);
+        f.append(file, [human("next")]);
+        await f.tick();
+        strict_1.default.equal(last("session-old")?.attention, undefined);
+        strict_1.default.equal(last("other")?.attention?.count, 1);
+    }
+    finally {
+        f.monitor.dispose();
+    }
+});
 (0, node_test_1.default)("Claude monitor suppresses premature notifications and notifies once for the final human task", async () => {
     const f = fixture("claude");
     const file = `${f.root}/project/session.jsonl`;

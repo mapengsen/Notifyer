@@ -156,3 +156,91 @@ test("question cards sort first and survive review acknowledgements, quiet timeo
   const resolved = applyActivity(base, { ...base, attention: undefined, observedAt: now });
   assert.equal(resolved.attention, undefined);
 });
+
+const metadata = (turnId: string, extra = {}) => ({ internal_chat_message_metadata_passthrough: { turn_id: turnId, ...extra } });
+const prompt = (turnId: string, message = "Continue with the updated requirements", extra = {}) => ({ type: "message", role: "user",
+  content: [{ type: "input_text", text: message }], ...metadata(turnId, extra) });
+
+test("a superseding human prompt retires earlier questionnaires without requiring a numbered reply", () => {
+  const questions = new SessionQuestions();
+  questions.consumeCodex({ ...request("a"), ...metadata("first") }, now);
+  questions.consumeCodex({ ...request("b"), ...metadata("first") }, now + 1);
+  questions.consumeCodex(output("a"), now + 2);
+  questions.finishTurn();
+  assert.equal(questions.attention?.count, 2);
+  questions.consumeCodex(prompt("second"), now + 3);
+  assert.equal(Boolean(questions.attention), false);
+  questions.consumeCodex({ ...request("current"), ...metadata("second") }, now + 4);
+  questions.finishTurn();
+  assert.deepEqual(questions.attention?.requestIds, ["current"]);
+  questions.consumeCodex(reply("current"), now + 5);
+  assert.equal(questions.attention, undefined);
+});
+
+test("same-turn steering, system messages, numbered replies and unknown identity do not dismiss other questions", () => {
+  const questions = new SessionQuestions();
+  questions.consumeCodex({ ...request("ask"), ...metadata("first") }, now);
+  for (const message of [prompt("first"), prompt("second", "Context only", { is_user_system_message: true }),
+    prompt("second", "Steering", { codex_optimistic_steering_user: true }),
+    { ...reply("unrelated"), ...metadata("second") }, prompt("")]) {
+    questions.consumeCodex(message, now + 1);
+    assert.equal(questions.attention?.count, 1);
+  }
+  questions.consumeCodex({ ...request("unknown"), call_id: "unknown" }, now + 2);
+  questions.consumeCodex(prompt("second"), now + 3);
+  assert.deepEqual(questions.attention?.requestIds, ["unknown"]); // No inference about an unscoped request.
+});
+
+test("working-turn and exchange metadata preserve the native same-exchange question UI", () => {
+  const questions = new SessionQuestions();
+  questions.consumeCodex({ ...request(), metadata: { working_turn_id: "working-a", turn_exchange_id: "exchange" } }, now);
+  questions.consumeCodex({ ...prompt("other"), metadata: { working_turn_id: "working-b", turn_exchange_id: "exchange" } }, now + 1);
+  assert.equal(questions.attention?.count, 1);
+  questions.consumeCodex({ ...prompt("other"), metadata: { working_turn_id: "working-c", turn_exchange_id: "new-exchange" } }, now + 2);
+  assert.equal(questions.attention, undefined);
+});
+
+test("image-only human prompts retire old questions; empty bookkeeping does not", () => {
+  const questions = new SessionQuestions();
+  questions.consumeCodex({ ...request(), ...metadata("old") }, now);
+  questions.consumeCodex({ ...prompt("next"), content: [] }, now + 1);
+  assert.equal(questions.attention?.count, 1);
+  questions.consumeCodex({ ...prompt("next"), content: [{ type: "input_image", image_url: "private-image" }] }, now + 2);
+  assert.equal(questions.attention, undefined);
+});
+
+test("both event-message and response-item prompts reconcile old questions in production tracking", () => {
+  for (const format of ["event", "response"] as const) {
+    const f = tracker();
+    f.event("task_started");
+    f.consume(request());
+    f.event("task_complete");
+    f.event("task_started", "next");
+    assert.equal(f.updates.at(-1)?.attention?.count, 1); // Automatic turn start alone is insufficient.
+    if (format === "event") f.event("user_message", "next", { message: "New instructions" });
+    else f.consume(prompt("next"));
+    assert.equal(f.updates.at(-1)?.attention, undefined);
+    f.consume(request("new-question"));
+    assert.deepEqual(f.updates.at(-1)?.attention?.requestIds, ["new-question"]);
+  }
+});
+
+test("baseline replay removes superseded historical questions while preserving terminal and review state", () => {
+  const f = tracker();
+  f.event("task_started");
+  f.consume({ ...request("historical"), ...metadata("turn-a") }, false);
+  f.event("task_complete");
+  f.consume(prompt("next"), false);
+  f.activity.flushBaseline(now);
+  const reconciled = f.updates.at(-1)!;
+  assert.equal(reconciled.attention, undefined);
+  assert.equal(reconciled.live, false);
+  const restored: StoredSession = { ...reconciled, unread: false,
+    attention: { requestIds: ["historical"], count: 1, message: "Old question", askedAt: now - 30 * 86_400_000 } };
+  const repaired = applyActivity(restored, reconciled);
+  assert.equal(repaired.attention, undefined);
+  assert.equal(repaired.finishedAt, restored.finishedAt);
+  assert.equal(repaired.unread, false);
+  const snapshot: WindowSnapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now, sessions: [repaired] };
+  assert.equal(aggregateSessions([snapshot], () => false, now)[0].attention, undefined);
+});

@@ -149,3 +149,86 @@ function tracker() {
     const resolved = (0, floatingState_1.applyActivity)(base, { ...base, attention: undefined, observedAt: now });
     strict_1.default.equal(resolved.attention, undefined);
 });
+const metadata = (turnId, extra = {}) => ({ internal_chat_message_metadata_passthrough: { turn_id: turnId, ...extra } });
+const prompt = (turnId, message = "Continue with the updated requirements", extra = {}) => ({ type: "message", role: "user",
+    content: [{ type: "input_text", text: message }], ...metadata(turnId, extra) });
+(0, node_test_1.default)("a superseding human prompt retires earlier questionnaires without requiring a numbered reply", () => {
+    const questions = new sessionQuestions_1.SessionQuestions();
+    questions.consumeCodex({ ...request("a"), ...metadata("first") }, now);
+    questions.consumeCodex({ ...request("b"), ...metadata("first") }, now + 1);
+    questions.consumeCodex(output("a"), now + 2);
+    questions.finishTurn();
+    strict_1.default.equal(questions.attention?.count, 2);
+    questions.consumeCodex(prompt("second"), now + 3);
+    strict_1.default.equal(Boolean(questions.attention), false);
+    questions.consumeCodex({ ...request("current"), ...metadata("second") }, now + 4);
+    questions.finishTurn();
+    strict_1.default.deepEqual(questions.attention?.requestIds, ["current"]);
+    questions.consumeCodex(reply("current"), now + 5);
+    strict_1.default.equal(questions.attention, undefined);
+});
+(0, node_test_1.default)("same-turn steering, system messages, numbered replies and unknown identity do not dismiss other questions", () => {
+    const questions = new sessionQuestions_1.SessionQuestions();
+    questions.consumeCodex({ ...request("ask"), ...metadata("first") }, now);
+    for (const message of [prompt("first"), prompt("second", "Context only", { is_user_system_message: true }),
+        prompt("second", "Steering", { codex_optimistic_steering_user: true }),
+        { ...reply("unrelated"), ...metadata("second") }, prompt("")]) {
+        questions.consumeCodex(message, now + 1);
+        strict_1.default.equal(questions.attention?.count, 1);
+    }
+    questions.consumeCodex({ ...request("unknown"), call_id: "unknown" }, now + 2);
+    questions.consumeCodex(prompt("second"), now + 3);
+    strict_1.default.deepEqual(questions.attention?.requestIds, ["unknown"]); // No inference about an unscoped request.
+});
+(0, node_test_1.default)("working-turn and exchange metadata preserve the native same-exchange question UI", () => {
+    const questions = new sessionQuestions_1.SessionQuestions();
+    questions.consumeCodex({ ...request(), metadata: { working_turn_id: "working-a", turn_exchange_id: "exchange" } }, now);
+    questions.consumeCodex({ ...prompt("other"), metadata: { working_turn_id: "working-b", turn_exchange_id: "exchange" } }, now + 1);
+    strict_1.default.equal(questions.attention?.count, 1);
+    questions.consumeCodex({ ...prompt("other"), metadata: { working_turn_id: "working-c", turn_exchange_id: "new-exchange" } }, now + 2);
+    strict_1.default.equal(questions.attention, undefined);
+});
+(0, node_test_1.default)("image-only human prompts retire old questions; empty bookkeeping does not", () => {
+    const questions = new sessionQuestions_1.SessionQuestions();
+    questions.consumeCodex({ ...request(), ...metadata("old") }, now);
+    questions.consumeCodex({ ...prompt("next"), content: [] }, now + 1);
+    strict_1.default.equal(questions.attention?.count, 1);
+    questions.consumeCodex({ ...prompt("next"), content: [{ type: "input_image", image_url: "private-image" }] }, now + 2);
+    strict_1.default.equal(questions.attention, undefined);
+});
+(0, node_test_1.default)("both event-message and response-item prompts reconcile old questions in production tracking", () => {
+    for (const format of ["event", "response"]) {
+        const f = tracker();
+        f.event("task_started");
+        f.consume(request());
+        f.event("task_complete");
+        f.event("task_started", "next");
+        strict_1.default.equal(f.updates.at(-1)?.attention?.count, 1); // Automatic turn start alone is insufficient.
+        if (format === "event")
+            f.event("user_message", "next", { message: "New instructions" });
+        else
+            f.consume(prompt("next"));
+        strict_1.default.equal(f.updates.at(-1)?.attention, undefined);
+        f.consume(request("new-question"));
+        strict_1.default.deepEqual(f.updates.at(-1)?.attention?.requestIds, ["new-question"]);
+    }
+});
+(0, node_test_1.default)("baseline replay removes superseded historical questions while preserving terminal and review state", () => {
+    const f = tracker();
+    f.event("task_started");
+    f.consume({ ...request("historical"), ...metadata("turn-a") }, false);
+    f.event("task_complete");
+    f.consume(prompt("next"), false);
+    f.activity.flushBaseline(now);
+    const reconciled = f.updates.at(-1);
+    strict_1.default.equal(reconciled.attention, undefined);
+    strict_1.default.equal(reconciled.live, false);
+    const restored = { ...reconciled, unread: false,
+        attention: { requestIds: ["historical"], count: 1, message: "Old question", askedAt: now - 30 * 86_400_000 } };
+    const repaired = (0, floatingState_1.applyActivity)(restored, reconciled);
+    strict_1.default.equal(repaired.attention, undefined);
+    strict_1.default.equal(repaired.finishedAt, restored.finishedAt);
+    strict_1.default.equal(repaired.unread, false);
+    const snapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now, sessions: [repaired] };
+    strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot], () => false, now)[0].attention, undefined);
+});

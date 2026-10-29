@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.28 - 2026-10-29
+
+### Fixed / 修复
+
+- Remove stale Codex “有新问题” badges when a later human prompt supersedes the earlier turn's questionnaire, including free-text continuation without a numbered question reply. Use logged turn/exchange identifiers to match the native question UI.
+- 修复 Codex 对话已进入新一轮、界面不再显示旧问题，浮窗却仍提示“有新问题”的情况；支持直接输入新要求继续对话，按日志中的轮次／交流标识校正问题状态。
+- Reconcile superseded questions during silent history replay, retaining review state and fixed runtime. Preserve current questions, same-turn steering, system messages and automatic continuations; keep conversations isolated and avoid clearing questions merely on viewing or elapsed time.
+- 历史重读时静默清理已被新一轮替代的提问，保留已读状态和固定运行时长；保留当前问题、同轮补充、系统消息及自动续跑，各会话独立，不因点击查看或经过一段时间而清掉真正待回答的问题。
+
 ## 0.4.27 - 2026-10-26
 
 ### Fixed / 修复

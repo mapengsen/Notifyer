@@ -94,7 +94,7 @@ class SessionActivityTracker {
                 return;
             }
             if (input.type === "response_item") {
-                this.questions.consumeCodex(payload, at);
+                this.questions.consumeCodex(payload, at, this.contextTurnId || this.current?.turnId);
                 if (!this.current && this.questions.attention)
                     this.begin(this.contextTurnId || string(payload.call_id) || String(at), at, live);
                 if (this.current)
@@ -112,7 +112,7 @@ class SessionActivityTracker {
                 this.begin(turnId, at, live);
             }
             if (type === "user_message") {
-                this.questions.consumeReplyText(string(payload.message));
+                this.questions.consumeCodex({ ...payload, type: "message", role: "user", content: payload.message }, at, turnId);
                 if (!this.current || this.current.turnId !== turnId)
                     this.begin(turnId, at, live);
                 if (this.current && !string(payload.message).includes("<send_user_message_question_reply>"))
