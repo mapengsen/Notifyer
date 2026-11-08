@@ -441,10 +441,10 @@ const event = (type, payload = {}) => ({
     const row = (0, floatingState_1.aggregateSessions)([snapshot("a", item, { project: "DNAKit [SSH: test]", environment: "ssh-remote" })], () => false, now)[0];
     strict_1.default.equal(row.owners[0].label, "DNAKit [SSH: test]");
 });
-(0, node_test_1.default)("closed windows, stale heartbeats and quiet tasks become unknown", () => {
+(0, node_test_1.default)("closed or stale windows disappear while quiet tasks in open windows become unknown", () => {
     const item = (0, floatingState_1.applyActivity)(undefined, activity());
     for (const overrides of [{ closed: true }, { heartbeat: now - 16000 }]) {
-        strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("a", item, overrides)], () => false, now)[0].status, "unknown");
+        strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("a", item, overrides)], () => false, now).length, 0);
     }
     const quiet = { ...item, updatedAt: now - 31 * 60000 };
     strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("a", quiet)], () => false, now)[0].status, "unknown");
@@ -462,13 +462,40 @@ const event = (type, payload = {}) => ({
     const next = (0, floatingState_1.applyActivity)(item, activity({ turnId: "turn-2", updatedAt: now + 10, status: "completed" }));
     strict_1.default.equal((0, floatingState_1.aggregateSessions)([snapshot("a", next)], (key) => key === readKey, now + 10)[0].unread, true);
 });
-(0, node_test_1.default)("unread results survive closed windows and age, and sort before running tasks", () => {
+(0, node_test_1.default)("unread results in open projects survive age and sort before running tasks", () => {
     const unread = (0, floatingState_1.applyActivity)(undefined, activity({ key: "old", status: "completed", updatedAt: now - 3 * 86400000 }));
     const running = (0, floatingState_1.applyActivity)(undefined, activity());
-    const rows = (0, floatingState_1.aggregateSessions)([snapshot("a", running), snapshot("b", unread, { closed: true })], () => false, now);
+    const rows = (0, floatingState_1.aggregateSessions)([snapshot("a", running), snapshot("b", unread)], () => false, now);
     strict_1.default.equal(rows[0].key, "old");
     strict_1.default.equal(rows[0].unread, true);
     strict_1.default.equal(rows[1].status, "running");
+});
+(0, node_test_1.default)("closing the final project window hides pending results without acknowledging them and reopening restores them", () => {
+    const unread = (0, floatingState_1.applyActivity)(undefined, activity({ key: "project-a", status: "completed" }));
+    const other = (0, floatingState_1.applyActivity)(undefined, activity({ key: "project-b" }));
+    const closed = snapshot("a", unread, { closed: true });
+    const open = snapshot("b", other, { workspace: "file:///other" });
+    strict_1.default.deepEqual((0, floatingState_1.aggregateSessions)([closed, open], () => false, now).map((row) => row.key), ["project-b"]);
+    strict_1.default.equal(unread.unread, true);
+    const reopened = snapshot("reopened", unread);
+    const rows = (0, floatingState_1.aggregateSessions)([closed, open, reopened], () => false, now);
+    strict_1.default.equal(rows[0].key, "project-a");
+    strict_1.default.equal(rows[0].unread, true);
+    strict_1.default.equal(rows[0].owners[0].windowId, "reopened");
+    strict_1.default.equal(rows[0].finishedAt, unread.finishedAt);
+});
+(0, node_test_1.default)("an uncleanly closed window expires after the heartbeat timeout, including failed results", () => {
+    const unread = (0, floatingState_1.applyActivity)(undefined, activity({ status: "failed" }));
+    const crashed = snapshot("a", unread, { heartbeat: now - 14999 });
+    strict_1.default.equal((0, floatingState_1.aggregateSessions)([crashed], () => false, now)[0].unread, true);
+    strict_1.default.equal((0, floatingState_1.aggregateSessions)([crashed], () => false, now + 1).length, 0);
+    strict_1.default.equal(unread.unread, true);
+});
+(0, node_test_1.default)("a closed project cannot inherit visibility from another host with the same project and session names", () => {
+    const closed = (0, floatingState_1.applyActivity)(undefined, activity({ key: "codex:host-a:session", status: "completed" }));
+    const open = (0, floatingState_1.applyActivity)(undefined, activity({ key: "codex:host-b:session", status: "completed" }));
+    const rows = (0, floatingState_1.aggregateSessions)([snapshot("a", closed, { closed: true }), snapshot("b", open)], () => false, now);
+    strict_1.default.deepEqual(rows.map((row) => row.key), [open.key]);
 });
 (0, node_test_1.default)("24-hour history retention hides reviewed results, never an unfinished long-running task", () => {
     const oldTime = now - 3 * 86400000;

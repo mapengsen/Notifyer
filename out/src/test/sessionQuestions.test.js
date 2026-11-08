@@ -136,16 +136,18 @@ function tracker() {
     strict_1.default.equal(updates.at(-1)?.turnId, "human");
     strict_1.default.equal(updates.at(-1)?.status, "running");
 });
-(0, node_test_1.default)("question cards sort first and survive review acknowledgements, quiet timeouts and closed windows", () => {
+(0, node_test_1.default)("question cards in open windows survive review acknowledgements and quiet timeouts but hide when the project closes", () => {
     const base = { key: "question", provider: "codex", sessionId: "session", turnId: "turn", cwd: "/work", title: "Task", status: "completed", live: false,
         startedAt: now - 3 * 86_400_000, updatedAt: now - 2 * 86_400_000, unread: false,
         attention: { requestIds: ["ask"], count: 1, message: "Continue?", askedAt: now - 2 * 86_400_000 } };
-    const snapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now, closed: true,
+    const snapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now,
         sessions: [{ ...base, key: "ordinary", attention: undefined, status: "running", updatedAt: now, live: true }, base] };
     const rows = (0, floatingState_1.aggregateSessions)([snapshot], () => true, now);
     strict_1.default.equal(rows[0].key, "question");
     strict_1.default.equal(rows[0].attention?.count, 1);
     strict_1.default.equal(rows[0].unread, false);
+    strict_1.default.equal((0, floatingState_1.aggregateSessions)([{ ...snapshot, closed: true }], () => true, now).length, 0);
+    strict_1.default.equal(base.attention?.count, 1); // Closing only hides the question.
     const resolved = (0, floatingState_1.applyActivity)(base, { ...base, attention: undefined, observedAt: now });
     strict_1.default.equal(resolved.attention, undefined);
 });

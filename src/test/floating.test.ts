@@ -435,10 +435,10 @@ test("remote window labels retain the project and SSH host without the ssh-remot
   assert.equal(row.owners[0].label, "DNAKit [SSH: test]");
 });
 
-test("closed windows, stale heartbeats and quiet tasks become unknown", () => {
+test("closed or stale windows disappear while quiet tasks in open windows become unknown", () => {
   const item = applyActivity(undefined, activity());
   for (const overrides of [{ closed: true }, { heartbeat: now - 16000 }]) {
-    assert.equal(aggregateSessions([snapshot("a", item, overrides)], () => false, now)[0].status, "unknown");
+    assert.equal(aggregateSessions([snapshot("a", item, overrides)], () => false, now).length, 0);
   }
   const quiet = { ...item, updatedAt: now - 31 * 60000 };
   assert.equal(aggregateSessions([snapshot("a", quiet)], () => false, now)[0].status, "unknown");
@@ -459,13 +459,43 @@ test("read acknowledgements synchronize across windows and apply only to the sel
   assert.equal(aggregateSessions([snapshot("a", next)], (key) => key === readKey, now + 10)[0].unread, true);
 });
 
-test("unread results survive closed windows and age, and sort before running tasks", () => {
+test("unread results in open projects survive age and sort before running tasks", () => {
   const unread = applyActivity(undefined, activity({ key: "old", status: "completed", updatedAt: now - 3 * 86400000 }));
   const running = applyActivity(undefined, activity());
-  const rows = aggregateSessions([snapshot("a", running), snapshot("b", unread, { closed: true })], () => false, now);
+  const rows = aggregateSessions([snapshot("a", running), snapshot("b", unread)], () => false, now);
   assert.equal(rows[0].key, "old");
   assert.equal(rows[0].unread, true);
   assert.equal(rows[1].status, "running");
+});
+
+test("closing the final project window hides pending results without acknowledging them and reopening restores them", () => {
+  const unread = applyActivity(undefined, activity({ key: "project-a", status: "completed" }));
+  const other = applyActivity(undefined, activity({ key: "project-b" }));
+  const closed = snapshot("a", unread, { closed: true });
+  const open = snapshot("b", other, { workspace: "file:///other" });
+  assert.deepEqual(aggregateSessions([closed, open], () => false, now).map((row) => row.key), ["project-b"]);
+  assert.equal(unread.unread, true);
+  const reopened = snapshot("reopened", unread);
+  const rows = aggregateSessions([closed, open, reopened], () => false, now);
+  assert.equal(rows[0].key, "project-a");
+  assert.equal(rows[0].unread, true);
+  assert.equal(rows[0].owners[0].windowId, "reopened");
+  assert.equal(rows[0].finishedAt, unread.finishedAt);
+});
+
+test("an uncleanly closed window expires after the heartbeat timeout, including failed results", () => {
+  const unread = applyActivity(undefined, activity({ status: "failed" }));
+  const crashed = snapshot("a", unread, { heartbeat: now - 14999 });
+  assert.equal(aggregateSessions([crashed], () => false, now)[0].unread, true);
+  assert.equal(aggregateSessions([crashed], () => false, now + 1).length, 0);
+  assert.equal(unread.unread, true);
+});
+
+test("a closed project cannot inherit visibility from another host with the same project and session names", () => {
+  const closed = applyActivity(undefined, activity({ key: "codex:host-a:session", status: "completed" }));
+  const open = applyActivity(undefined, activity({ key: "codex:host-b:session", status: "completed" }));
+  const rows = aggregateSessions([snapshot("a", closed, { closed: true }), snapshot("b", open)], () => false, now);
+  assert.deepEqual(rows.map((row) => row.key), [open.key]);
 });
 
 test("24-hour history retention hides reviewed results, never an unfinished long-running task", () => {

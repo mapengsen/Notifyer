@@ -143,16 +143,18 @@ test("Claude activity tracking publishes and resolves question badges within the
   assert.equal(updates.at(-1)?.status, "running");
 });
 
-test("question cards sort first and survive review acknowledgements, quiet timeouts and closed windows", () => {
+test("question cards in open windows survive review acknowledgements and quiet timeouts but hide when the project closes", () => {
   const base: StoredSession = { key: "question", provider: "codex", sessionId: "session", turnId: "turn", cwd: "/work", title: "Task", status: "completed", live: false,
     startedAt: now - 3 * 86_400_000, updatedAt: now - 2 * 86_400_000, unread: false,
     attention: { requestIds: ["ask"], count: 1, message: "Continue?", askedAt: now - 2 * 86_400_000 } };
-  const snapshot: WindowSnapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now, closed: true,
+  const snapshot: WindowSnapshot = { version: 1, windowId: "window", workspace: "file:///work", project: "Project", environment: "local", windowHandle: "1", pid: 1, heartbeat: now,
     sessions: [{ ...base, key: "ordinary", attention: undefined, status: "running", updatedAt: now, live: true }, base] };
   const rows = aggregateSessions([snapshot], () => true, now);
   assert.equal(rows[0].key, "question");
   assert.equal(rows[0].attention?.count, 1);
   assert.equal(rows[0].unread, false);
+  assert.equal(aggregateSessions([{ ...snapshot, closed: true }], () => true, now).length, 0);
+  assert.equal(base.attention?.count, 1); // Closing only hides the question.
   const resolved = applyActivity(base, { ...base, attention: undefined, observedAt: now });
   assert.equal(resolved.attention, undefined);
 });

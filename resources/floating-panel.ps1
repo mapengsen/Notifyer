@@ -222,7 +222,7 @@ try {
   }
   function Write-Heartbeat {
     Write-Json (Join-Path $StateRoot 'panel-heartbeat.json') @{
-      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.28'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
+      pid = $PID; updatedAt = (Now-Ms); visible = $script:window.IsVisible; version = '0.4.29'; theme = $script:theme; fontSize = $script:fontSize; desktopEnabled = $script:desktopEnabled; controlId = $script:lastControl; left = $script:window.Left; top = $script:window.Top; width = $script:window.Width; height = $script:expandedHeight; runningCount = $script:runningCount; unreadCount = $script:unreadCount
     }
   }
   function Update-Chrome {
@@ -336,9 +336,21 @@ try {
     $indicator.VerticalAlignment = 'Center'
     return $indicator
   }
+  function Test-OpenOwner($Row, [double]$Now) {
+    foreach ($owner in @($Row.owners)) {
+      if (-not $owner.online) { continue }
+      if ([string]$owner.windowId -match '^[a-f0-9-]+$') {
+        $snapshot = Read-Json (Join-Path $StateRoot ('windows\' + $owner.windowId + '.json'))
+        # A close/timeout can precede the next aggregate model publication.
+        if ($snapshot -and ($snapshot.closed -or -not $snapshot.heartbeat -or $Now - [double]$snapshot.heartbeat -ge 15000)) { continue }
+      }
+      return $true
+    }
+    return $false
+  }
   function Get-VisibleRows($Rows, [double]$Now, [bool]$Stale) {
     foreach ($row in @($Rows)) {
-      if (-not $row) { continue }
+      if (-not $row -or -not (Test-OpenOwner $row $Now)) { continue }
       # Old hosts can keep publishing an already-cached local /fast command.
       # Do not wait for the quiet timeout or a VS Code reload to hide it.
       if ($row.provider -eq 'claude' -and ([string]$row.title -match '^\s*<local-command-(?:caveat|stdout|stderr)(?:\s|>)' -or [string]$row.title -match '^\s*<command-name>\s*/fast\s*</command-name>(?:\s|$)')) { continue }
@@ -663,11 +675,21 @@ try {
     Save-Preferences
     if ($script:cards.Count -ne 2) { throw 'Panel must show only running and unread fixture rows.' }
     if ($controls.RunningCount.Text -ne '运行中  1' -or $controls.UnreadCount.Text -ne '待查看  1') { throw 'Hidden long-running rows must not contribute to counts.' }
-    $historyOnly = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = (Now-Ms) }
+    $ownerStatePath = Join-Path $StateRoot 'windows\aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.json'
+    Write-Json $ownerStatePath @{ closed = $true; heartbeat = (Now-Ms) }
+    Refresh-Panel
+    if ($script:unreadCount -ne 0 -or $script:cards.Count -ne 1 -or $script:runningCount -ne 1 -or $controls.MarkAllReadButton.IsEnabled) { throw 'Closing a project must hide its pending card and count even before an old host republishes its model.' }
+    if ([IO.File]::Exists((Join-Path $StateRoot ('read\' + ('a' * 64) + '.json')))) { throw 'Hiding a closed project must not mark its result reviewed.' }
+    Write-Json $ownerStatePath @{ closed = $false; heartbeat = (Now-Ms) }
+    Refresh-Panel
+    if ($script:unreadCount -ne 1 -or $script:cards.Count -ne 2) { throw 'Reopening the project must restore its still-pending result.' }
+    [IO.File]::Delete($ownerStatePath)
+    $testOwners = @(@{ windowId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; online = $true })
+    $historyOnly = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = (Now-Ms); owners = $testOwners }
     if (@(Get-VisibleRows @($historyOnly) (Now-Ms) $false).Count -ne 0) { throw 'Baseline history from older extension hosts must not show an active spinner.' }
-    $waitingQuestion = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = ((Now-Ms) - 600 * 60000); attention = @{ count = 1; message = 'Waiting for an answer' } }
-    if (@(Get-VisibleRows @($waitingQuestion) (Now-Ms) $true).Count -ne 1) { throw 'An unanswered question must remain visible across quiet timeouts, old turns and disconnected windows.' }
-    $localCommand = [pscustomobject]@{ provider = 'claude'; title = ''; status = 'running'; live = $true; unread = $false; startedAt = (Now-Ms) }
+    $waitingQuestion = [pscustomobject]@{ status = 'running'; live = $false; unread = $false; startedAt = ((Now-Ms) - 600 * 60000); attention = @{ count = 1; message = 'Waiting for an answer' }; owners = $testOwners }
+    if (@(Get-VisibleRows @($waitingQuestion) (Now-Ms) $true).Count -ne 1) { throw 'An unanswered question in an open window must remain visible across quiet timeouts and old turns.' }
+    $localCommand = [pscustomobject]@{ provider = 'claude'; title = ''; status = 'running'; live = $true; unread = $false; startedAt = (Now-Ms); owners = $testOwners }
     foreach ($title in @('<command-name>/fast</command-name> <command-message>fast</command-message>', '<local-command-caveat>Local command only</local-command-caveat>', '<local-command-stdout>Fast mode unavailable</local-command-stdout>')) {
       $localCommand.title = $title
       if (@(Get-VisibleRows @($localCommand) (Now-Ms) $false).Count -ne 0) { throw 'Cached local Claude control commands must not display as running.' }
@@ -676,6 +698,22 @@ try {
       $localCommand.title = $title
       if (@(Get-VisibleRows @($localCommand) (Now-Ms) $false).Count -ne 1) { throw 'Model-backed slash commands and normal prompts must remain visible.' }
     }
+    $ownerCheckNow = Now-Ms
+    $ownerCheckPath = Join-Path $StateRoot 'windows\ffffffff-ffff-ffff-ffff-ffffffffffff.json'
+    $offlineRow = [pscustomobject]@{ status = 'completed'; unread = $true; startedAt = $ownerCheckNow; updatedAt = $ownerCheckNow; acknowledgement = ('8' * 64); owners = @(@{ windowId = 'ffffffff-ffff-ffff-ffff-ffffffffffff'; online = $false }) }
+    if (@(Get-VisibleRows @($offlineRow) $ownerCheckNow $false).Count -ne 0) { throw 'Offline rows published by older hosts must be hidden.' }
+    $offlineRow.owners[0].online = $true
+    Write-Json $ownerCheckPath @{ closed = $false; heartbeat = ($ownerCheckNow - 15000) }
+    if (@(Get-VisibleRows @($offlineRow) $ownerCheckNow $false).Count -ne 0) { throw 'An expired owner heartbeat must hide pending results.' }
+    Write-Json $ownerCheckPath @{ closed = $false; heartbeat = ($ownerCheckNow - 14999) }
+    if (@(Get-VisibleRows @($offlineRow) $ownerCheckNow $false).Count -ne 1) { throw 'An open owner inside the heartbeat boundary must remain visible.' }
+    Write-Json $ownerCheckPath @{ closed = $true; heartbeat = $ownerCheckNow }
+    $offlineRow.owners += $testOwners
+    if (@(Get-VisibleRows @($offlineRow) $ownerCheckNow $false).Count -ne 1) { throw 'A second open window must retain the same project result.' }
+    $offlineRow.owners = @($offlineRow.owners[0])
+    $offlineRow | Add-Member -NotePropertyName attention -NotePropertyValue @{ count = 1; message = 'Pending question in a closed project' }
+    if (@(Get-VisibleRows @($offlineRow) $ownerCheckNow $false).Count -ne 0) { throw 'Question badges must not resurrect a closed project.' }
+    [IO.File]::Delete($ownerCheckPath)
     $dot = $script:cards[0].Child.Children[0].Children[0]
     $spinner = $script:cards[1].Child.Children[0].Children[0]
     if ($dot -isnot [Windows.Shapes.Ellipse] -or $dot.Fill.ToString() -ne '#FF1676D2') { throw 'Unread results must have a blue dot.' }
@@ -684,11 +722,11 @@ try {
     if (-not $spinner.RenderTransform.HasAnimatedProperties) { throw 'The spinner must animate continuously.' }
     Set-SpinnerMotion $spinner $false
     if ($spinner.RenderTransform.HasAnimatedProperties) { throw 'Hidden/unloaded spinners must release their animation clocks.' }
-    $boundary = [pscustomobject]@{ status = 'running'; startedAt = 1000000; unread = $false }
+    $boundary = [pscustomobject]@{ status = 'running'; startedAt = 1000000; unread = $false; owners = $testOwners }
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 59999) $false)[0].runningMinutes -ne 0) { throw 'A partial first minute must display zero minutes.' }
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt + 60000) $false)[0].runningMinutes -ne 1) { throw 'Running minutes must update at the turn boundary without new activity.' }
     if (@(Get-VisibleRows @($boundary) ($boundary.startedAt - 1000) $false)[0].runningMinutes -ne 0) { throw 'Clock differences must not display negative running minutes.' }
-    $ended = [pscustomobject]@{ status = 'completed'; unread = $true; startedAt = 1000000; finishedAt = 1480000; updatedAt = 7000000; acknowledgement = ('7' * 64) }
+    $ended = [pscustomobject]@{ status = 'completed'; unread = $true; startedAt = 1000000; finishedAt = 1480000; updatedAt = 7000000; acknowledgement = ('7' * 64); owners = $testOwners }
     foreach ($time in @(8000000, 18000000)) {
       if (@(Get-VisibleRows @($ended) $time $false)[0].totalMinutes -ne 8) { throw 'Pending-result runtime must stop at completion and exclude review waiting time.' }
     }
@@ -821,7 +859,7 @@ try {
     Refresh-Panel
     Write-Heartbeat
     $health = Read-Json (Join-Path $StateRoot 'panel-heartbeat.json')
-    if ($health.pid -ne $PID -or $health.version -ne '0.4.28' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
+    if ($health.pid -ne $PID -or $health.version -ne '0.4.29' -or $health.width -ne 280 -or $health.height -ne 440 -or $health.fontSize -ne 14) { throw 'Panel heartbeat geometry/font failed' }
     if ($health.controlId -ne 'test-hide' -or $health.visible -or $script:requestedVisible) { throw 'Visibility acknowledgement failed' }
     # A reader must not block replacement of a snapshot on Windows.
     $probe = Join-Path $StateRoot 'shared-read-test.json'

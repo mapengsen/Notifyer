@@ -4,6 +4,15 @@ All notable changes to Notifyer are documented in this file.
 
 Notifyer 的重要变更都会记录在此文件中。
 
+## 0.4.29 - 2026-11-08
+
+### Changed / 调整
+
+- Hide a project's conversation cards and pending-result count once its last VS Code window closes. Keep the card when another matching window remains open; windows that stop reporting expire after 15 seconds.
+- 项目最后一个 VS Code 窗口关闭后，隐藏对应会话卡片并同步扣除待查看数量；同一项目仍有其他窗口打开时继续显示，异常退出且不再上报的窗口在 15 秒后隐藏。
+- Preserve unread results and questions in local storage for reopening. Apply the same window-availability rule in both aggregation and the native panel, including models from older extension hosts, without requiring a VS Code reload for the current desktop display fix.
+- 保留本地未读结果与待回答问题，重新打开项目后恢复。汇总与桌面小窗都核对窗口是否仍打开，兼容旧后台发布的缓存；当前桌面显示修复无需重载正在工作的 VS Code 窗口。
+
 ## 0.4.28 - 2026-10-29
 
 ### Fixed / 修复

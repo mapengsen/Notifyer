@@ -103,6 +103,8 @@ On Windows, one shared desktop window starts hidden; click the bottom-right Noti
 - **Running** with a continuously rotating indicator. Turns exceeding 500 minutes are hidden and excluded from the running count.
 - **Completed / error, awaiting review** with a blue dot for results observed after the initial scan. Opening the specific conversation through its card clears that result after confirmed selection; window activation alone never clears it. The **✓** button remains available for manual review. Acknowledgements synchronize across windows and survive restarts.
 
+Only conversations with at least one open, recently reporting VS Code window appear. Closing the project's last matching window hides its cards, question badges and pending count; another matching window keeps them visible. If a window exits without reporting its closure, its heartbeat expires after 15 seconds. Closing hides the result without marking it reviewed or deleting its questions; reopening the project can restore its pending state. The native panel enforces this rule even when an older extension host publishes cached rows.
+
 The default window fits approximately three compact cards; resize it freely and scroll for additional conversations. Titles use one line with an ellipsis; hover to read the stored excerpt. Persistent connection/focus explanations and the redundant SSH environment label are omitted. Running, unread and unanswered-question conversations appear. The 500-minute cutoff applies to the current turn's running time; its later completion can still appear for review, and a new turn is timed separately. Marking a result reviewed immediately removes its card; baseline history is hidden. Disconnected, aborted or quiet conversations are kept as unconfirmed internally and excluded from the running list. Long tools and approval waits can be quiet too; this does not indicate failure.
 
 Drag the header to move the panel. Click the sun/moon icon for day/night colors (night by default; daytime prompts remain black, project names retain their status color and the footer stays gray), **桌面通知 开 / 关** for shared desktop notifications (off by default), **置顶** to pin it, **− / +** to collapse/expand, and **×** to hide it. All preferences persist, including existing explicit notification choices. Muting desktop notifications preserves session tracking and unread results; explicitly configured VS Code notices remain enabled. **Click Notifyer in the bottom-right VS Code status bar to reopen the window; click again to hide it.** Its eye icon and tooltip track the shared visibility state across VS Code windows. The existing **Notifyer: Show Floating Window** and **Notifyer: Hide Floating Window** commands remain available.
@@ -132,6 +134,11 @@ Starting with 0.3.0, quota display has moved to the independent **Agent Center**
 Agent Center: [marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status](https://marketplace.visualstudio.com/items?itemName=pengsen.codex-claude-agent-status)
 
 # Changelog
+
+## November 8, 2026 (0.4.29)
+
+1. Hide cards and pending counts for projects whose last VS Code window has closed; retain projects with another open window and expire missing heartbeats after 15 seconds.
+2. Keep unread/question state locally for reopening, and enforce visibility in the desktop panel even when older extension hosts publish cached rows.
 
 ## October 29, 2026 (0.4.28)
 

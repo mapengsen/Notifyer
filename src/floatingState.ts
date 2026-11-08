@@ -122,6 +122,9 @@ export function aggregateSessions(
   }
   const rows: PanelRow[] = [];
   for (const { session, owners, online } of grouped.values()) {
+    // Keep the stored result for reopening, but display only conversations
+    // that still have an open, recently reporting VS Code window.
+    if (!online) continue;
     const acknowledgement = acknowledgementKey(session);
     const unread = session.unread && !acknowledged(acknowledgement);
     // Old viewed history is intentionally omitted; pending results remain visible.
